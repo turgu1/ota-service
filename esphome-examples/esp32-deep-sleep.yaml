@@ -1,0 +1,192 @@
+# ESPHome Configuration Example - Deep Sleep Device (Battery Powered)
+# This example shows how to integrate deep sleep devices with the OTA service
+# Device wakes periodically, checks for OTA updates, and goes back to sleep
+
+substitutions:
+  device_name: esp32-outdoor-sensor
+  device_id: esp32-outdoor-sensor
+  friendly_name: "Outdoor Sensor"
+  firmware_version: "1.0.0"  # Update this when deploying new firmware
+
+  # OTA service related substitutions
+  ota_service_name: "ota-service" # from OTA service config
+  ota_password: "the-ota-password"  # Must match OTA service config
+  ota_port: "3232"  # ESPHome OTA port (default: 3232)
+
+  # MQTT related substitutions
+  mqtt_port: "1883"  # 8883 for TLS
+  topic_prefix: "devices/${device_id}"
+
+  # Deep sleep timings
+  sleep_duration: "300s"  # Sleep for 5 minutes between readings
+  run_duration: "30s"  # Stay awake for 30 seconds (enough for sensor readings and OTA check)
+
+  # IMPORTANT:
+  # If the device uses a static IP, set it here.
+  # If not, be sure that your DHCP lease time is long enough to avoid IP changes,
+  # or make it's address reservation in your DHCP Config.
+  # -->
+  # ip_address: "10.0.0.253"
+  # gateway_address: "10.0.0.1"
+  # subnet_mask: "255.255.255.0"
+
+esphome:
+  name: ${device_name}
+  
+  # Run at boot - retrieve check if woke from deep sleep
+  on_boot:
+    lambda: |-
+      id(deep_sleep_reset) = esp_reset_reason() == ESP_RST_DEEPSLEEP;
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# WiFi configuration
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # If the device IP address is static, set it here
+  # manual_ip: 
+  #   static_ip: $ip_address
+  #   gateway: $gateway_address
+  #   subnet: $subnet_mask
+  
+  # Fast connect for battery devices
+  fast_connect: true
+  
+  # Power save mode
+  power_save_mode: LIGHT
+  
+  # Enable fallback hotspot
+  ap:
+    ssid: "${device_name} Fallback"
+    password: !secret ap_password
+
+# Text sensor for IP address.
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "${friendly_name} IP Address"
+      id: device_ip
+
+# Enable logging (reduce level to save power)
+logger:
+  level: INFO
+
+# Deep sleep control
+deep_sleep:
+  id: deep_sleep_control
+  run_duration: ${run_duration} 
+  sleep_duration: ${sleep_duration}
+
+# This will checked automatically to see if we can enter deep sleep
+# this could be adapted to include other conditions as needed
+binary_sensor:
+  - platform: template
+    id: "ready_for_deep_sleep"
+    lambda: |-
+      if (id(mqtt_work_is_complete) && !id(ota_update)) {
+        return true;
+      } else {
+        return false;
+      }
+    on_state_change:
+      then:
+        - if:
+            condition:
+              binary_sensor.is_on: ready_for_deep_sleep
+            then:
+              - deep_sleep.enter: deep_sleep_control
+
+# Global variable to track if we're waiting for OTA
+globals:
+  - id: mqtt_work_is_complete  # True if all MQTT related work is completed
+    type: bool
+    initial_value: 'false'
+  - id: ota_update            # True if an OTA update is in progress
+    type: bool                # Set when a NEW-FIRMWARE-VERSION msg is received
+    initial_value: 'false'
+  - id: deep_sleep_reset      # True if device woke from deep sleep. 
+    type: bool                # Set in on_boot:
+    initial_value: 'false'
+
+# Enable OTA updates via ESPHome protocol v2
+# Critical for OTA service integration
+ota:
+  - platform: esphome
+    password: !secret ota_password
+    port: ${ota_port}
+
+# MQTT configuration - REQUIRED for OTA service integration
+mqtt:
+  broker: !secret mqtt_broker_address
+  port: ${mqtt_port}
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+  client_id: ${device_id}
+  
+  # Keep alive should be shorter for deep sleep devices
+  keepalive: 15s
+  
+  # Subscribe to OTA mode topic
+  on_message:
+    - topic: ${topic_prefix}/ota-mode
+      payload: 'NEW-FIRMWARE-VERSION'
+      then:
+        - deep_sleep.prevent: deep_sleep_control
+        - globals.set:
+            id: ota_update
+            value: 'true'
+        - logger.log: "Received a NEW-FIRMWARE-VERSION OTA mode message"
+        - logger.log: "Preparing for OTA update"
+        - mqtt.publish:
+            topic: ${topic_prefix}/ota-ready
+            payload: "OTA-READY"
+            retain: false
+            qos: 2
+
+        # Optional: Turn off sensors or close connections if needed
+        # The device will receive firmware upload shortly
+
+    - topic: ${topic_prefix}/ota-mode
+      payload: 'OTA-COMPLETED'
+      then:
+        - globals.set:
+            id: ota_update
+            value: 'false'
+        - mqtt.publish:
+            topic: ${topic_prefix}/ota-mode
+            payload: ""
+            retain: true 
+        - deep_sleep.allow: deep_sleep_control
+
+  on_connect:
+    then:
+      - delay: 2s
+      - if: 
+          condition:
+            lambda: "return id(deep_sleep_reset) == false;"
+          then:
+            # This is only required for normal bootstraps, not deep sleep wakeups
+            - mqtt.publish_json: 
+                topic: "${ota_service_name}/register"
+                payload: |-
+                  root["device_id"] = "${device_id}"; 
+                  root["ip_address"] = id(device_ip).state.c_str();
+                  root["firmware_version"] = "${firmware_version}";
+                  root["ota_readiness_topic"] = "${topic_prefix}/ota-ready";
+                  root["ota_mode_topic"] = "${topic_prefix}/ota-mode";
+                  root["uses_deep_sleep"] = true;
+                retain: false
+                qos: 2
+            - delay: 2s
+            - logger.log: "Deep sleep device registered with OTA service"
+
+      - delay: 2s
+      - globals.set:
+          id: mqtt_work_is_complete
+          value: 'true'
+

@@ -1,0 +1,28 @@
+# Device Simulator Configuration
+
+mqtt:
+  host: localhost
+  port: 1883
+  username: null  # Optional MQTT username
+  password: null  # Optional MQTT password
+  keep_alive: 60
+  topic_prefix: "devices/"  # Prefix for all device MQTT topics (e.g., devices/sim-esp32-001ota-mode)
+  registration_topic: "ota-service/register"  # Single registration topic for all devices
+
+simulator:
+  num_devices: 10  # Number of devices to simulate (1-100)
+  device_id_prefix: "sim-esp32-"  # Prefix for device IDs (e.g., sim-esp32-001)
+  base_ota_port: 8266  # Base OTA port (each device gets base + device_number)
+  log_level: "info"  # debug, info, warn, error
+  
+firmware:
+  ota_password: null  # Optional OTA password (hex string)
+  storage_path: "path-to-firmware-folder"  # Path to firmware storage (relative or absolute)
+  generation_interval_min: 300  # Minimum seconds between firmware generation (5 minutes)
+  generation_interval_max: 600  # Maximum seconds between firmware generation (10 minutes)
+  initial_version: "1.0.0"  # Starting firmware version for all devices
+
+deep_sleep:
+  min_sleep_seconds: 30   # Minimum deep sleep duration
+  max_sleep_seconds: 200  # Maximum deep sleep duration
+  max_wakeup_seconds: 30  # Maximum time device stays awake

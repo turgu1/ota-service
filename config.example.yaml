@@ -1,0 +1,93 @@
+# OTA Service Configuration Example
+# Copy this file to ota_config.yml and customize for your environment
+
+mqtt:
+  # MQTT broker connection settings
+  host: localhost
+  port: 1883
+  client_id: ota-service
+  
+  # MQTT authentication (optional)
+  username: null  # or "mqtt_user"
+  password: null  # or "mqtt_password"
+  
+  # Keep-alive interval in seconds
+  keep_alive: 60
+  
+  # Topic prefix for OTA service communication with devices
+  ota_service_topic_prefix: "ota-service/"
+  
+  # Topic where devices publish registration messages
+  # REQUIRED - devices must publish to this topic to register
+  registration_topic: "ota-service/registration"
+
+database:
+  # Path to SQLite database file
+  path: "/var/lib/ota-service/devices.db"
+  
+  # Database connection pool size
+  pool_size: 5
+
+service:
+  # Service name identifier
+  name: "ota-service"
+  
+  # Logging level: trace, debug, info, warn, error
+  log_level: "info"
+  
+  # Path to log file (optional, null for stdout only)
+  log_file_path: "/var/log/ota-service/ota-service.log"
+
+firmware:
+  # Directory where firmware binary files are stored
+  # Must be absolute path
+  # Firmware files should be named: {device_id}-{version}.bin
+  # Example: esp32-001-1.0.0.bin
+  storage_path: "/var/lib/ota-service/firmware"
+  
+  # Maximum number of concurrent OTA updates
+  max_concurrent_updates: 10
+  
+  # Timeout for OTA update in seconds
+  update_timeout: 3600
+  
+  # Interval in seconds between firmware availability checks
+  # Service will check for newer firmware every N seconds
+  check_interval: 300  # 5 minutes (was 60, now matches docs)
+  
+  # OTA authentication password (optional)
+  # If set, all devices must use this password for OTA authentication
+  # If null, no authentication is required
+  ota_password: null  # or "your_secure_password"
+  
+  # Default OTA port number (ESPHome default: 3232)
+  # Can be overridden per device in device registration
+  default_ota_port: 3232
+  
+  # Erase firmware file after successful upload
+  # Set to true to automatically delete firmware files after deployment
+  # Set to false to keep firmware files for rollback/redeployment
+  erase_firmware_after_upload: false
+
+# Pushover notification configuration (optional)
+# Comment out or set enabled: false to disable notifications
+pushover:
+  # Enable/disable Pushover notifications
+  enabled: false
+  
+  # Pushover API token (get from https://pushover.net/apps)
+  api_token: "your_pushover_api_token"
+  
+  # Pushover user key (get from https://pushover.net/)
+  user_key: "your_pushover_user_key"
+  
+  # Send to specific device (optional)
+  # device: "iphone"  # Uncomment to send to specific device
+  
+  # Notification priority
+  # -2 = lowest (no notification)
+  # -1 = low (no sound/vibration)
+  #  0 = normal (default)
+  #  1 = high (bypass quiet hours)
+  #  2 = emergency (require confirmation)
+  priority: 0

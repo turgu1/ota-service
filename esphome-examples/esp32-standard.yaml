@@ -1,0 +1,143 @@
+# ESPHome Configuration Example - Standard Device (No Deep Sleep)
+# This example shows all required components to work with the OTA service
+# Device will remain online continuously and respond immediately to OTA requests
+
+substitutions:
+  device_name: esp32-outdoor-sensor
+  device_id: esp32-outdoor-sensor
+  friendly_name: "Outdoor Sensor"
+  firmware_version: "1.0.0"  # Update this when deploying new firmware
+
+  # OTA service related substitutions
+  ota_service_name: "ota-service" # from OTA service config
+  ota_password: "the-ota-password"  # Must match OTA service config
+  ota_port: "3232"  # ESPHome OTA port (default: 3232)
+
+  # MQTT related substitutions
+  mqtt_port: "1883"  # 8883 for TLS
+  topic_prefix: "devices/${device_id}"
+
+  # If the device uses a static IP, set it here
+  # ip_address: "10.0.0.254"
+  # gateway_address: "10.0.0.1"
+  # subnet_mask: "255.255.255.0"
+
+esphome:
+  name: ${device_name}
+  platform: ESP32
+  board: esp32dev
+  
+  # Run registration on boot
+  on_boot:
+    priority: -100  # Run after WiFi and MQTT are connected
+    then:
+      - delay: 5s  # Wait for MQTT connection to stabilize
+      - script.execute: register_device
+
+# WiFi configuration
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # If the device IP address is static, set it here (uncomment the following lines)
+  # manual_ip: 
+  #   static_ip: $ip_address
+  #   gateway: $gateway_address
+  #   subnet: $subnet_mask
+
+  # Enable fallback hotspot in case wifi connection fails
+  ap:
+    ssid: "${device_name} Fallback"
+    password: !secret ap_password
+
+# Enable logging
+logger:
+  level: INFO
+
+# Enable Home Assistant API (optional)
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+# Enable OTA updates via ESPHome protocol v2
+# This is the critical component that allows the OTA service to upload firmware
+ota:
+  password: ${ota_password}
+  port: ${ota_port}
+
+# MQTT configuration - REQUIRED for OTA service integration
+mqtt:
+  broker: !secret mqtt_broker
+  port: ${mqtt_port}
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+  client_id: ${device_id}
+  
+  # Subscribe to OTA mode topic - service will publish NEW-FIRMWARE-VERSION here
+  on_message:
+    - topic: ${topic_prefix}/ota-mode
+      payload: 'NEW-FIRMWARE-VERSION'
+      then:
+        - logger.log: "Received a NEW-FIRMWARE-VERSION OTA mode message"
+        - logger.log: "Preparing for OTA update"
+        - mqtt.publish:
+            topic: ${topic_prefix}/ota-ready
+            payload: "OTA-READY"
+            retain: false
+            qos: 2
+
+        # Optional: Turn off sensors or close connections if needed
+        # The device will receive firmware upload shortly
+
+# Text sensor for IP address
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "${friendly_name} IP Address"
+      id: device_ip
+
+# Script to register device with OTA service
+script:
+  - id: register_device
+    then:
+      - wait_until:
+          mqtt.connected:
+      - delay: 2s
+      - lambda: |-
+          // Get IP address
+          std::string ip = id(device_ip).state.c_str();
+          
+          // Build registration JSON
+          std::string registration = "{";
+          registration += "\"device_id\":\"${device_id}\",";
+          registration += "\"ip_address\":\"" + ip + "\",";
+          registration += "\"firmware_version\":\"${firmware_version}\",";
+          registration += "\"ota_readiness_topic\":\"devices/${device_id}/ready\",";
+          registration += "\"ota_mode_topic\":\"devices/${device_id}/ota-mode\",";
+          registration += "\"uses_deep_sleep\":false";
+          registration += "}";
+          
+          // Publish registration to OTA service
+          id(mqtt_client).publish("ota-service/register", registration);
+          
+          ESP_LOGI("ota", "Device registered: %s", registration.c_str());
+
+# Example sensor - add your actual sensors here
+sensor:
+  - platform: wifi_signal
+    name: "${friendly_name} WiFi Signal"
+    update_interval: 60s
+
+  - platform: uptime
+    name: "${friendly_name} Uptime"
+    update_interval: 60s
+
+# Example binary sensor
+binary_sensor:
+  - platform: status
+    name: "${friendly_name} Status"
+
+# Example switch
+switch:
+  - platform: restart
+    name: "${friendly_name} Restart"
