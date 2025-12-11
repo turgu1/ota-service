@@ -21,17 +21,17 @@ Complete index of all modules, features, APIs, and documentation.
 | Module | File | Description | Lines |
 |--------|------|-------------|-------|
 | **Main** | `src/main.rs` | Application entry point, logging setup | 102 |
-| **Service** | `src/service.rs` | High-level OTA service orchestration | 578 |
+| **Service** | `src/service.rs` | High-level OTA service orchestration | 603 |
 | **OTA Client** | `src/ota_client.rs` | ESPHome OTA protocol implementation | 341 |
 | **MQTT Client** | `src/mqtt_client.rs` | MQTT wrapper with async operations | 169 |
 | **MQTT Coordinator** | `src/mqtt.rs` | Device registration parsing | 149 |
-| **Database** | `src/database.rs` | SQLite device management with upload history | 584 |
+| **Database** | `src/database.rs` | SQLite device management with upload history | 664 |
 | **Firmware Manager** | `src/firmware.rs` | Firmware file discovery and versioning | 415 |
 | **Configuration** | `src/config.rs` | Configuration loading and validation | 295 |
 | **Version** | `src/version.rs` | Semantic version parsing and comparison | 145 |
 | **Pushover** | `src/pushover.rs` | Pushover notification client | 155 |
 
-**Total**: 10 modules, 2,933 lines of code
+**Total**: 10 modules, 3,038 lines of code
 
 ### Module Dependencies
 
@@ -162,6 +162,12 @@ impl Database {
         device_id: &str,
         device_state: DeviceState,
     ) -> Result<(), String>
+    
+    /// Increment fail count for a device
+    pub fn increment_fail_count(&mut self, device_id: &str) -> Result<(), String>
+    
+    /// Increment update count for a device
+    pub fn increment_update_count(&mut self, device_id: &str) -> Result<(), String>
     
     /// Delete device
     pub async fn delete_device(&mut self, device_id: &str) -> Result<(), String>
@@ -389,15 +395,26 @@ pushover:
 CREATE TABLE devices (
     device_id TEXT PRIMARY KEY,
     ip_address TEXT NOT NULL,
+    mac_address TEXT NOT NULL,
     firmware_version TEXT NOT NULL,
     last_updated TEXT NOT NULL,
     ota_readiness_topic TEXT NOT NULL,
     ota_mode_topic TEXT NOT NULL,
     uses_deep_sleep INTEGER NOT NULL,
     ota_port INTEGER,
-    state TEXT NOT NULL DEFAULT 'idle'
+    state TEXT NOT NULL DEFAULT 'idle',
+    fail_count INTEGER NOT NULL DEFAULT 0,
+    update_count INTEGER NOT NULL DEFAULT 0,
+    rssi INTEGER NOT NULL DEFAULT 0
 );
 ```
+
+**Statistics Fields:**
+- `fail_count`: Number of failed OTA update attempts
+- `update_count`: Number of successful OTA updates
+
+**WiFi Signal Strength:**
+- `rssi`: Received Signal Strength Indicator in dBm (negative values, e.g., -65)
 
 #### upload_history
 
@@ -440,7 +457,8 @@ pub enum DeviceState {
   "firmware_version": "1.0.0",
   "ota_port": 3232,
   "ota_readiness_topic": "home/esp32-001/ota/ready",
-  "ota_mode_topic": "home/esp32-001/ota/mode"
+  "ota_mode_topic": "home/esp32-001/ota/mode",
+  "rssi": -65
 }
 ```
 
@@ -648,7 +666,8 @@ mosquitto_pub -h localhost -t "home/ota/registration" -m '{
   "firmware_version": "1.0.0",
   "ota_port": 3232,
   "ota_readiness_topic": "home/esp32-test/ota/ready",
-  "ota_mode_topic": "home/esp32-test/ota/mode"
+  "ota_mode_topic": "home/esp32-test/ota/mode",
+  "rssi": -65
 }'
 
 # Clear retained messages

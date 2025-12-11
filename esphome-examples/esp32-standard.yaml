@@ -104,17 +104,21 @@ script:
           mqtt.connected:
       - delay: 2s
       - lambda: |-
-          // Get IP address
+          // Get IP address and MAC address
           std::string ip = id(device_ip).state.c_str();
+          std::string mac = wifi::global_wifi_component->get_mac_address_pretty();
+          int rssi = wifi::global_wifi_component->wifi_rssi();
           
           // Build registration JSON
           std::string registration = "{";
           registration += "\"device_id\":\"${device_id}\",";
           registration += "\"ip_address\":\"" + ip + "\",";
+          registration += "\"mac_address\":\"" + mac + "\",";
           registration += "\"firmware_version\":\"${firmware_version}\",";
           registration += "\"ota_readiness_topic\":\"devices/${device_id}/ready\",";
           registration += "\"ota_mode_topic\":\"devices/${device_id}/ota-mode\",";
-          registration += "\"uses_deep_sleep\":false";
+          registration += "\"uses_deep_sleep\":false,";
+          registration += "\"rssi\":" + std::to_string(rssi);
           registration += "}";
           
           // Publish registration to OTA service

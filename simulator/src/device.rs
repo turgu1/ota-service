@@ -12,6 +12,7 @@ use tokio::time::{sleep, timeout, Duration};
 /// Simulated ESP32 device
 pub struct SimulatedDevice {
     device_id: String,
+    mac_address: String,
     ota_port: u16,
     mqtt_config: MqttConfig,
     ota_password: Option<String>,
@@ -26,12 +27,14 @@ pub struct SimulatedDevice {
 #[derive(Debug, Serialize, Deserialize)]
 struct DeviceRegistration {
     device_id: String,
+    mac_address: String,
     ip_address: String,
     firmware_version: String,
     ota_readiness_topic: String,
     ota_mode_topic: String,
     uses_deep_sleep: bool,
     ota_port: u16,
+    rssi: i32,
 }
 
 impl SimulatedDevice {
@@ -46,8 +49,12 @@ impl SimulatedDevice {
         max_sleep: u64,
         max_wakeup: u64,
     ) -> Self {
+        // Generate a unique MAC address based on the device_id
+        let mac_address = Self::generate_mac_address(&device_id);
+
         SimulatedDevice {
             device_id,
+            mac_address,
             ota_port,
             mqtt_config,
             ota_password,
@@ -57,6 +64,32 @@ impl SimulatedDevice {
             max_wakeup,
             is_first_boot: true, // First run is always a boot
         }
+    }
+
+    /// Generate a fake MAC address in format XX:XX:XX:XX:XX:XX
+    /// Uses device_id to ensure uniqueness and reproducibility
+    fn generate_mac_address(device_id: &str) -> String {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        device_id.hash(&mut hasher);
+        let hash = hasher.finish();
+
+        // Generate 6 bytes for MAC address using the hash
+        let bytes = [
+            0xAA, // First byte with locally administered bit set
+            ((hash >> 40) & 0xFF) as u8,
+            ((hash >> 32) & 0xFF) as u8,
+            ((hash >> 24) & 0xFF) as u8,
+            ((hash >> 16) & 0xFF) as u8,
+            ((hash >> 8) & 0xFF) as u8,
+        ];
+
+        format!(
+            "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+            bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]
+        )
     }
 
     /// Run the device simulation
@@ -93,8 +126,15 @@ impl SimulatedDevice {
 
             // Register device only on boot (initial start or after firmware update)
             if self.is_first_boot {
+                // Generate a fake RSSI value (signal strength in dB, typically -30 to -90)
+                let rssi = {
+                    let mut rng = rand::rng();
+                    rng.random_range(-90..=-30)
+                };
+
                 let registration = DeviceRegistration {
                     device_id: self.device_id.clone(),
+                    mac_address: self.mac_address.clone(),
                     ip_address: "127.0.0.1".to_string(),
                     firmware_version: self.firmware_version.clone(),
                     ota_readiness_topic: format!(
@@ -107,6 +147,7 @@ impl SimulatedDevice {
                     ),
                     uses_deep_sleep: true,
                     ota_port: self.ota_port,
+                    rssi,
                 };
 
                 let payload = serde_json::to_string(&registration)

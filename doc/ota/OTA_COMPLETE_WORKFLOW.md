@@ -39,7 +39,8 @@ Each phase has specific responsibilities and state transitions.
      "firmware_version": "1.0.0",
      "ota_port": 3232,
      "ota_readiness_topic": "home/esp32-001/ota/ready",
-     "ota_mode_topic": "home/esp32-001/ota/mode"
+     "ota_mode_topic": "home/esp32-001/ota/mode",
+     "rssi": -65
    }
    ```
 

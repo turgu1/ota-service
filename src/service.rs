@@ -459,6 +459,13 @@ impl OtaService {
                                                                     let mut db =
                                                                         database.lock().await;
                                                                     let _ = db.update_device_firmware_version(&device_id, &new_firmware.version);
+                                                                    if let Err(e) = db
+                                                                        .increment_update_count(
+                                                                            &device_id,
+                                                                        )
+                                                                    {
+                                                                        error!("Failed to increment update count for {}: {}", device_id, e);
+                                                                    }
                                                                     let _ = db.add_upload_history(
                                                                         &device_id,
                                                                         &new_firmware.version,
@@ -497,6 +504,13 @@ impl OtaService {
                                                                     );
                                                                     let mut db =
                                                                         database.lock().await;
+                                                                    if let Err(e) = db
+                                                                        .increment_fail_count(
+                                                                            &device_id,
+                                                                        )
+                                                                    {
+                                                                        error!("Failed to increment fail count for {}: {}", device_id, e);
+                                                                    }
                                                                     let _ = db.add_upload_history(
                                                                         &device_id,
                                                                         &new_firmware.version,
@@ -515,6 +529,11 @@ impl OtaService {
                                                                 e
                                                             );
                                                             let mut db = database.lock().await;
+                                                            if let Err(e) =
+                                                                db.increment_fail_count(&device_id)
+                                                            {
+                                                                error!("Failed to increment fail count for {}: {}", device_id, e);
+                                                            }
                                                             let _ = db.update_device_state(
                                                                 &device_id,
                                                                 DeviceState::Idle,

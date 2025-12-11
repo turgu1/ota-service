@@ -289,12 +289,14 @@ The service sends push notifications via Pushover for:
 The service maintains a SQLite database with two tables:
 
 ### devices table
-- Device ID (primary key), IP address, firmware version
+- Device ID (primary key), IP address, MAC address, firmware version
 - Last update timestamp
 - MQTT topics (readiness, OTA mode)
 - Deep sleep mode configuration
 - OTA port (optional, uses default if not specified)
 - Update state (idle, new_version_available_transmitted, ota_transmit)
+- Statistics: fail_count (failed OTA attempts), update_count (successful OTA updates)
+- WiFi signal strength (rssi) in dBm
 
 ### upload_history table
 - Upload attempt records with SUCCESS/FAIL state

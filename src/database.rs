@@ -49,6 +49,7 @@ impl fmt::Display for DeviceState {
 pub struct Device {
     pub device_id: String,
     pub ip_address: String,
+    pub mac_address: String,
     pub firmware_version: String,
     pub last_updated: String,
     pub ota_readiness_topic: String,
@@ -56,6 +57,9 @@ pub struct Device {
     pub uses_deep_sleep: bool,
     pub ota_port: Option<u16>,
     pub state: DeviceState,
+    pub fail_count: i32,
+    pub update_count: i32,
+    pub rssi: i32,
 }
 
 /// SQLite database for device management
@@ -94,13 +98,17 @@ impl Database {
             CREATE TABLE IF NOT EXISTS devices (
                 device_id TEXT PRIMARY KEY,
                 ip_address TEXT NOT NULL,
+                mac_address TEXT NOT NULL,
                 firmware_version TEXT NOT NULL,
                 last_updated TEXT NOT NULL,
                 ota_readiness_topic TEXT NOT NULL,
                 ota_mode_topic TEXT NOT NULL,
                 uses_deep_sleep INTEGER NOT NULL,
                 ota_port INTEGER,
-                state TEXT NOT NULL DEFAULT 'idle'
+                state TEXT NOT NULL DEFAULT 'idle',
+                fail_count INTEGER NOT NULL DEFAULT 0,
+                update_count INTEGER NOT NULL DEFAULT 0,
+                rssi INTEGER NOT NULL DEFAULT 0
             )
         ";
 
@@ -131,10 +139,24 @@ impl Database {
         debug!("Upserting device: {}", device.device_id);
 
         let query = "
-            INSERT OR REPLACE INTO devices (
-                device_id, ip_address, firmware_version, last_updated,
-                ota_readiness_topic, ota_mode_topic, uses_deep_sleep, ota_port, state
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO devices (
+                device_id, ip_address, mac_address, firmware_version, last_updated,
+                ota_readiness_topic, ota_mode_topic, uses_deep_sleep, ota_port, state,
+                fail_count, update_count, rssi
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(device_id) DO UPDATE SET
+                ip_address = excluded.ip_address,
+                mac_address = excluded.mac_address,
+                firmware_version = excluded.firmware_version,
+                last_updated = excluded.last_updated,
+                ota_readiness_topic = excluded.ota_readiness_topic,
+                ota_mode_topic = excluded.ota_mode_topic,
+                uses_deep_sleep = excluded.uses_deep_sleep,
+                ota_port = excluded.ota_port,
+                state = excluded.state,
+                rssi = excluded.rssi
+                -- Note: fail_count and update_count are intentionally NOT updated here
+                -- They are only modified by increment_fail_count() and increment_update_count()
         ";
 
         let mut statement = self
@@ -149,26 +171,38 @@ impl Database {
             .bind((2, device.ip_address.as_str()))
             .map_err(|e| format!("Failed to bind ip_address: {}", e))?;
         statement
-            .bind((3, device.firmware_version.as_str()))
+            .bind((3, device.mac_address.as_str()))
+            .map_err(|e| format!("Failed to bind mac_address: {}", e))?;
+        statement
+            .bind((4, device.firmware_version.as_str()))
             .map_err(|e| format!("Failed to bind firmware_version: {}", e))?;
         statement
-            .bind((4, device.last_updated.as_str()))
+            .bind((5, device.last_updated.as_str()))
             .map_err(|e| format!("Failed to bind last_updated: {}", e))?;
         statement
-            .bind((5, device.ota_readiness_topic.as_str()))
+            .bind((6, device.ota_readiness_topic.as_str()))
             .map_err(|e| format!("Failed to bind ota_readiness_topic: {}", e))?;
         statement
-            .bind((6, device.ota_mode_topic.as_str()))
+            .bind((7, device.ota_mode_topic.as_str()))
             .map_err(|e| format!("Failed to bind ota_mode_topic: {}", e))?;
         statement
-            .bind((7, if device.uses_deep_sleep { 1i64 } else { 0i64 }))
+            .bind((8, if device.uses_deep_sleep { 1i64 } else { 0i64 }))
             .map_err(|e| format!("Failed to bind uses_deep_sleep: {}", e))?;
         statement
-            .bind((8, device.ota_port.map(|p| p as i64).unwrap_or(0i64).max(0)))
+            .bind((9, device.ota_port.map(|p| p as i64).unwrap_or(0i64).max(0)))
             .map_err(|e| format!("Failed to bind ota_port: {}", e))?;
         statement
-            .bind((9, device.state.to_string()))
+            .bind((10, device.state.to_string()))
             .map_err(|e| format!("Failed to bind state: {}", e))?;
+        statement
+            .bind((11, device.fail_count as i64))
+            .map_err(|e| format!("Failed to bind fail_count: {}", e))?;
+        statement
+            .bind((12, device.update_count as i64))
+            .map_err(|e| format!("Failed to bind update_count: {}", e))?;
+        statement
+            .bind((13, device.rssi as i64))
+            .map_err(|e| format!("Failed to bind rssi: {}", e))?;
 
         statement
             .next()
@@ -201,6 +235,9 @@ impl Database {
                 ip_address: statement
                     .read::<String, _>("ip_address")
                     .map_err(|e| format!("Failed to read ip_address: {}", e))?,
+                mac_address: statement
+                    .read::<String, _>("mac_address")
+                    .map_err(|e| format!("Failed to read mac_address: {}", e))?,
                 firmware_version: statement
                     .read::<String, _>("firmware_version")
                     .map_err(|e| format!("Failed to read firmware_version: {}", e))?,
@@ -233,6 +270,9 @@ impl Database {
                         .map_err(|e| format!("Failed to read state: {}", e))?;
                     DeviceState::from_string(&state_str).unwrap_or(DeviceState::Idle)
                 },
+                fail_count: statement.read::<i64, _>("fail_count").unwrap_or(0) as i32,
+                update_count: statement.read::<i64, _>("update_count").unwrap_or(0) as i32,
+                rssi: statement.read::<i64, _>("rssi").unwrap_or(0) as i32,
             };
 
             Ok(Some(device))
@@ -262,6 +302,9 @@ impl Database {
                 ip_address: statement
                     .read::<String, _>("ip_address")
                     .map_err(|e| format!("Failed to read ip_address: {}", e))?,
+                mac_address: statement
+                    .read::<String, _>("mac_address")
+                    .map_err(|e| format!("Failed to read mac_address: {}", e))?,
                 firmware_version: statement
                     .read::<String, _>("firmware_version")
                     .map_err(|e| format!("Failed to read firmware_version: {}", e))?,
@@ -294,6 +337,9 @@ impl Database {
                         .map_err(|e| format!("Failed to read state: {}", e))?;
                     DeviceState::from_string(&state_str).unwrap_or(DeviceState::Idle)
                 },
+                fail_count: statement.read::<i64, _>("fail_count").unwrap_or(0) as i32,
+                update_count: statement.read::<i64, _>("update_count").unwrap_or(0) as i32,
+                rssi: statement.read::<i64, _>("rssi").unwrap_or(0) as i32,
             };
 
             devices.push(device);
@@ -378,7 +424,62 @@ impl Database {
         info!("Updated state for device {}: {}", device_id, new_state);
         Ok(())
     }
+    /// Increment fail count for a device
+    pub fn increment_fail_count(&mut self, device_id: &str) -> Result<(), String> {
+        debug!("Incrementing fail count for device {}", device_id);
 
+        let query =
+            "UPDATE devices SET fail_count = fail_count + 1, last_updated = ? WHERE device_id = ?";
+
+        let mut statement = self
+            .connection
+            .prepare(query)
+            .map_err(|e| format!("Failed to prepare update statement: {}", e))?;
+
+        let now = chrono::Local::now().to_rfc3339();
+
+        statement
+            .bind((1, now.as_str()))
+            .map_err(|e| format!("Failed to bind last_updated: {}", e))?;
+        statement
+            .bind((2, device_id))
+            .map_err(|e| format!("Failed to bind device_id: {}", e))?;
+
+        statement
+            .next()
+            .map_err(|e| format!("Failed to execute update: {}", e))?;
+
+        info!("Fail count incremented for device {}", device_id);
+        Ok(())
+    }
+
+    /// Increment update count for a device
+    pub fn increment_update_count(&mut self, device_id: &str) -> Result<(), String> {
+        debug!("Incrementing update count for device {}", device_id);
+
+        let query = "UPDATE devices SET update_count = update_count + 1, last_updated = ? WHERE device_id = ?";
+
+        let mut statement = self
+            .connection
+            .prepare(query)
+            .map_err(|e| format!("Failed to prepare update statement: {}", e))?;
+
+        let now = chrono::Local::now().to_rfc3339();
+
+        statement
+            .bind((1, now.as_str()))
+            .map_err(|e| format!("Failed to bind last_updated: {}", e))?;
+        statement
+            .bind((2, device_id))
+            .map_err(|e| format!("Failed to bind device_id: {}", e))?;
+
+        statement
+            .next()
+            .map_err(|e| format!("Failed to execute update: {}", e))?;
+
+        info!("Update count incremented for device {}", device_id);
+        Ok(())
+    }
     /// Delete a device
     pub fn delete_device(&mut self, device_id: &str) -> Result<(), String> {
         debug!("Deleting device: {}", device_id);

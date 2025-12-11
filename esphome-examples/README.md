@@ -92,10 +92,12 @@ Both device and OTA service must agree on:
    {
      "device_id": "esp32-kitchen",
      "ip_address": "192.168.1.100",
+     "mac_address": "AA:BB:CC:DD:EE:FF",
      "firmware_version": "2024.11.0",
      "ota_readiness_topic": "devices/esp32-kitchen/ready",
      "ota_mode_topic": "devices/esp32-kitchen/ota-mode",
-     "uses_deep_sleep": false
+     "uses_deep_sleep": false,
+     "rssi": -65
    }
    ```
 

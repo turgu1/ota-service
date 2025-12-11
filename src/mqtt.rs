@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct DeviceRegistration {
     pub device_id: String,
     pub ip_address: String,
+    pub mac_address: String,
     pub firmware_version: String,
     pub ota_readiness_topic: String,
     pub ota_mode_topic: String,
@@ -15,6 +16,9 @@ pub struct DeviceRegistration {
     /// Optional device-specific OTA port
     #[serde(default)]
     pub ota_port: Option<u16>,
+    /// WiFi signal strength (RSSI)
+    #[serde(default)]
+    pub rssi: i32,
 }
 
 impl DeviceRegistration {
@@ -32,6 +36,7 @@ impl DeviceRegistration {
         Device {
             device_id: self.device_id.clone(),
             ip_address: self.ip_address.clone(),
+            mac_address: self.mac_address.clone(),
             firmware_version: self.firmware_version.clone(),
             last_updated: chrono::Local::now().to_rfc3339(),
             ota_readiness_topic: self.ota_readiness_topic.clone(),
@@ -39,6 +44,9 @@ impl DeviceRegistration {
             uses_deep_sleep: self.uses_deep_sleep,
             ota_port: self.ota_port,
             state: DeviceState::Idle,
+            fail_count: 0,
+            update_count: 0,
+            rssi: self.rssi,
         }
     }
 }
@@ -110,11 +118,13 @@ mod tests {
         let json = r#"{
             "device_id": "esp32-001",
             "ip_address": "192.168.1.100",
+            "mac_address": "AA:BB:CC:DD:EE:FF",
             "firmware_version": "1.0.0",
             "ota_readiness_topic": "devices/esp32-001/ready",
             "ota_mode_topic": "devices/esp32-001/ota-mode",
             "uses_deep_sleep": true,
-            "ota_port": 3232
+            "ota_port": 3232,
+            "rssi": -65
         }"#;
 
         let reg = DeviceRegistration::from_json(json);
@@ -123,8 +133,10 @@ mod tests {
         let reg = reg.unwrap();
         assert_eq!(reg.device_id, "esp32-001");
         assert_eq!(reg.ip_address, "192.168.1.100");
+        assert_eq!(reg.mac_address, "AA:BB:CC:DD:EE:FF");
         assert_eq!(reg.firmware_version, "1.0.0");
         assert_eq!(reg.ota_port, Some(3232));
+        assert_eq!(reg.rssi, -65);
     }
 
     #[test]

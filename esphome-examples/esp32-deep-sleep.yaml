@@ -176,10 +176,12 @@ mqtt:
                 payload: |-
                   root["device_id"] = "${device_id}"; 
                   root["ip_address"] = id(device_ip).state.c_str();
+                  root["mac_address"] = wifi::global_wifi_component->get_mac_address_pretty().c_str();
                   root["firmware_version"] = "${firmware_version}";
                   root["ota_readiness_topic"] = "${topic_prefix}/ota-ready";
                   root["ota_mode_topic"] = "${topic_prefix}/ota-mode";
                   root["uses_deep_sleep"] = true;
+                  root["rssi"] = wifi::global_wifi_component->wifi_rssi();
                 retain: false
                 qos: 2
             - delay: 2s
