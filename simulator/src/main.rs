@@ -54,9 +54,11 @@ async fn main() {
                 log::Level::Trace => "TRACE".purple(),
             };
             out.finish(format_args!(
-                "{} [{}] {}",
+                "{} [{}] [{}:{}] {}",
                 chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
                 level_string,
+                record.target(),
+                record.line().unwrap_or(0),
                 message
             ))
         })

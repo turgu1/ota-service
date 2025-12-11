@@ -90,7 +90,7 @@ impl Database {
     fn initialize_schema(&self) -> Result<(), String> {
         debug!("Initializing database schema");
 
-        let query = "
+        let devices_query = "
             CREATE TABLE IF NOT EXISTS devices (
                 device_id TEXT PRIMARY KEY,
                 ip_address TEXT NOT NULL,
@@ -105,8 +105,22 @@ impl Database {
         ";
 
         self.connection
-            .execute(query)
+            .execute(devices_query)
             .map_err(|e| format!("Failed to create devices table: {}", e))?;
+
+        let upload_history_query = "
+            CREATE TABLE IF NOT EXISTS upload_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_id TEXT NOT NULL,
+                version TEXT NOT NULL,
+                state TEXT NOT NULL CHECK(state IN ('SUCCESS', 'FAIL')),
+                attempted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        ";
+
+        self.connection
+            .execute(upload_history_query)
+            .map_err(|e| format!("Failed to create upload_history table: {}", e))?;
 
         debug!("Database schema initialized");
         Ok(())
@@ -386,6 +400,148 @@ impl Database {
 
         info!("Device deleted: {}", device_id);
         Ok(())
+    }
+
+    /// Add an upload history record
+    ///
+    /// # Arguments
+    /// * `device_id` - Device identifier
+    /// * `version` - Firmware version that was uploaded
+    /// * `success` - Whether the upload succeeded (true) or failed (false)
+    ///
+    /// # Returns
+    /// Result indicating success or error
+    pub fn add_upload_history(
+        &mut self,
+        device_id: &str,
+        version: &str,
+        success: bool,
+    ) -> Result<(), String> {
+        let state = if success { "SUCCESS" } else { "FAIL" };
+        debug!(
+            "Adding upload history for device {} with version {} - state: {}",
+            device_id, version, state
+        );
+
+        let query = "
+            INSERT INTO upload_history (device_id, version, state, attempted_at)
+            VALUES (?, ?, ?, datetime('now'))
+        ";
+
+        let mut statement = self
+            .connection
+            .prepare(query)
+            .map_err(|e| format!("Failed to prepare upload history insert: {}", e))?;
+
+        statement
+            .bind((1, device_id))
+            .map_err(|e| format!("Failed to bind device_id: {}", e))?;
+        statement
+            .bind((2, version))
+            .map_err(|e| format!("Failed to bind version: {}", e))?;
+        statement
+            .bind((3, state))
+            .map_err(|e| format!("Failed to bind state: {}", e))?;
+
+        statement
+            .next()
+            .map_err(|e| format!("Failed to insert upload history: {}", e))?;
+
+        info!(
+            "Upload history recorded for device {} version {} - {}",
+            device_id, version, state
+        );
+        Ok(())
+    }
+
+    /// Get upload history for a specific device
+    ///
+    /// # Arguments
+    /// * `device_id` - Device identifier
+    ///
+    /// # Returns
+    /// Result containing a vector of (version, state, attempted_at) tuples
+    pub fn get_upload_history(
+        &self,
+        device_id: &str,
+    ) -> Result<Vec<(String, String, String)>, String> {
+        debug!("Getting upload history for device {}", device_id);
+
+        let query = "
+            SELECT version, state, attempted_at
+            FROM upload_history
+            WHERE device_id = ?
+            ORDER BY attempted_at DESC
+        ";
+
+        let mut statement = self
+            .connection
+            .prepare(query)
+            .map_err(|e| format!("Failed to prepare upload history query: {}", e))?;
+
+        statement
+            .bind((1, device_id))
+            .map_err(|e| format!("Failed to bind device_id: {}", e))?;
+
+        let mut history = Vec::new();
+
+        while let Ok(State::Row) = statement.next() {
+            let version = statement
+                .read::<String, _>("version")
+                .map_err(|e| format!("Failed to read version: {}", e))?;
+            let state = statement
+                .read::<String, _>("state")
+                .map_err(|e| format!("Failed to read state: {}", e))?;
+            let attempted_at = statement
+                .read::<String, _>("attempted_at")
+                .map_err(|e| format!("Failed to read attempted_at: {}", e))?;
+
+            history.push((version, state, attempted_at));
+        }
+
+        debug!("Found {} upload history records", history.len());
+        Ok(history)
+    }
+
+    /// Get all upload history records
+    ///
+    /// # Returns
+    /// Result containing a vector of (device_id, version, state, attempted_at) tuples
+    pub fn get_all_upload_history(&self) -> Result<Vec<(String, String, String, String)>, String> {
+        debug!("Getting all upload history");
+
+        let query = "
+            SELECT device_id, version, state, attempted_at
+            FROM upload_history
+            ORDER BY attempted_at DESC
+        ";
+
+        let mut statement = self
+            .connection
+            .prepare(query)
+            .map_err(|e| format!("Failed to prepare upload history query: {}", e))?;
+
+        let mut history = Vec::new();
+
+        while let Ok(State::Row) = statement.next() {
+            let device_id = statement
+                .read::<String, _>("device_id")
+                .map_err(|e| format!("Failed to read device_id: {}", e))?;
+            let version = statement
+                .read::<String, _>("version")
+                .map_err(|e| format!("Failed to read version: {}", e))?;
+            let state = statement
+                .read::<String, _>("state")
+                .map_err(|e| format!("Failed to read state: {}", e))?;
+            let attempted_at = statement
+                .read::<String, _>("attempted_at")
+                .map_err(|e| format!("Failed to read attempted_at: {}", e))?;
+
+            history.push((device_id, version, state, attempted_at));
+        }
+
+        debug!("Found {} upload history records", history.len());
+        Ok(history)
     }
 }
 

@@ -6,6 +6,7 @@ mod mqtt_client;
 mod ota_client;
 mod pushover;
 mod service;
+mod version;
 
 use config::Configuration;
 use fern::colors::{Color, ColoredLevelConfig};

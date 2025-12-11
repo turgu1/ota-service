@@ -2,7 +2,7 @@
 
 **Over-The-Air Firmware Update Service for ESPHome Devices**
 
-*Last updated: December 6, 2025*
+*Last updated: December 10, 2025*
 
 A robust Rust-based service that automatically manages firmware updates for ESP32 devices running ESPHome firmware. The service monitors for new firmware versions, coordinates updates via MQTT, and uploads firmware using the ESPHome native OTA protocol v2.
 
@@ -57,7 +57,6 @@ mqtt:
   username: "ota-user"
   password: "ota-password"
   keep_alive: 60
-  ota_service_topic_prefix: "ota-service/"
 
 database:
   path: "/var/lib/ota-service/devices.db"
@@ -65,7 +64,6 @@ database:
 
 service:
   name: "ota-service"
-  port: 8080
   log_level: "info"
   log_file_path: "/var/log/ota-service/ota-service.log"
 
@@ -86,7 +84,7 @@ pushover:  # Optional push notifications
 ```
 
 **Configuration Notes:**
-- `erase_firmware_after_upload`: When set to `true`, firmware files are automatically deleted after successful upload to a device. This helps manage disk space when deploying firmware to multiple devices. Set to `false` (default) to keep firmware files for reuse or rollback purposes.
+- `erase_firmware_after_upload`: When set to `true`, the uploaded firmware file and all older versions for the same device are automatically deleted after successful upload. This helps manage disk space when deploying firmware to multiple devices. Set to `false` (default) to keep firmware files for reuse or rollback purposes.
 
 ### Running the Service
 
@@ -288,12 +286,20 @@ The service sends push notifications via Pushover for:
 
 ## Database Schema
 
-The service maintains a SQLite database tracking:
-- Device ID, IP address, firmware version
+The service maintains a SQLite database with two tables:
+
+### devices table
+- Device ID (primary key), IP address, firmware version
 - Last update timestamp
 - MQTT topics (readiness, OTA mode)
 - Deep sleep mode configuration
-- Update state (Idle, OtaTransmit, NewVersionAvailableTransmitted)
+- OTA port (optional, uses default if not specified)
+- Update state (idle, new_version_available_transmitted, ota_transmit)
+
+### upload_history table
+- Upload attempt records with SUCCESS/FAIL state
+- Device ID, version, attempt timestamp
+- Used for tracking firmware deployment history
 
 ## Project Structure
 

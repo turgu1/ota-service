@@ -21,16 +21,17 @@ Complete index of all modules, features, APIs, and documentation.
 | Module | File | Description | Lines |
 |--------|------|-------------|-------|
 | **Main** | `src/main.rs` | Application entry point, logging setup | 102 |
-| **Service** | `src/service.rs` | High-level OTA service orchestration | 467 |
+| **Service** | `src/service.rs` | High-level OTA service orchestration | 578 |
 | **OTA Client** | `src/ota_client.rs` | ESPHome OTA protocol implementation | 341 |
 | **MQTT Client** | `src/mqtt_client.rs` | MQTT wrapper with async operations | 169 |
 | **MQTT Coordinator** | `src/mqtt.rs` | Device registration parsing | 149 |
-| **Database** | `src/database.rs` | SQLite device management | 422 |
-| **Firmware Manager** | `src/firmware.rs` | Firmware file discovery and versioning | 261 |
-| **Configuration** | `src/config.rs` | Configuration loading and validation | 297 |
+| **Database** | `src/database.rs` | SQLite device management with upload history | 584 |
+| **Firmware Manager** | `src/firmware.rs` | Firmware file discovery and versioning | 415 |
+| **Configuration** | `src/config.rs` | Configuration loading and validation | 295 |
+| **Version** | `src/version.rs` | Semantic version parsing and comparison | 145 |
 | **Pushover** | `src/pushover.rs` | Pushover notification client | 155 |
 
-**Total**: 9 modules, 2,363 lines of code
+**Total**: 10 modules, 2,933 lines of code
 
 ### Module Dependencies
 
@@ -38,6 +39,7 @@ Complete index of all modules, features, APIs, and documentation.
 main.rs
   └─> service.rs
        ├─> ota_client.rs
+       ├─> version.rs
        ├─> mqtt_client.rs
        ├─> mqtt.rs
        ├─> database.rs
@@ -163,6 +165,23 @@ impl Database {
     
     /// Delete device
     pub async fn delete_device(&mut self, device_id: &str) -> Result<(), String>
+    
+    /// Add upload history record
+    pub fn add_upload_history(
+        &mut self,
+        device_id: &str,
+        version: &str,
+        success: bool,
+    ) -> Result<(), String>
+    
+    /// Get upload history for a device
+    pub fn get_upload_history(
+        &self,
+        device_id: &str,
+    ) -> Result<Vec<(String, String, String)>, String>  // (version, state, attempted_at)
+    
+    /// Get all upload history
+    pub fn get_all_upload_history(&self) -> Result<Vec<(String, String, String, String)>, String>  // (device_id, version, state, attempted_at)
 }
 ```
 
@@ -199,8 +218,48 @@ impl FirmwareManager {
     
     /// List all firmware files
     pub fn list_all_firmware(&self) -> Result<Vec<FirmwareInfo>, String>
+    
+    /// Delete firmware and all older versions for a device
+    pub fn delete_firmware_and_older_versions(
+        &self,
+        device_id: &str,
+        current_version: &str,
+    ) -> Result<usize, String>
 }
 ```
+
+### Version
+
+**Location**: `src/version.rs`
+
+#### Public Methods
+
+```rust
+pub struct Version {
+    pub major: u32,
+    pub minor: u32,
+    pub patch: u32,
+}
+
+impl Version {
+    /// Parse version string "major.minor.patch"
+    pub fn parse(version_str: &str) -> Result<Self, String>
+    
+    /// Compare this version with another (returns Ordering)
+    pub fn compare(&self, other: &Version) -> Ordering
+    
+    /// Check if this version is greater than another
+    pub fn is_greater_than(&self, other: &Version) -> bool
+    
+    /// Check if this version is less than another
+    pub fn is_less_than(&self, other: &Version) -> bool
+    
+    /// Check if this version is less than or equal to another
+    pub fn is_less_or_equal(&self, other: &Version) -> bool
+}
+```
+
+**Note**: Version comparison is numeric, not string-based. For example, "1.10.0" > "1.9.0" (correct numeric comparison), whereas string comparison would incorrectly treat "1.10.0" < "1.9.0".
 
 ### MqttClient
 
@@ -289,16 +348,21 @@ mqtt:
   registration_topic: "home/ota/registration"
 
 database:
-  db_path: "/var/lib/ota-service/ota.db"
+  path: "/var/lib/ota-service/devices.db"
+  pool_size: 5
 
 service:
-  firmware_dir: "/var/lib/ota-service/firmware"
+  name: "ota-service"
+  log_level: "info"
+  log_file_path: "/var/log/ota-service/ota-service.log"
 
 firmware:
-  firmware_dir: "/var/lib/ota-service/firmware"
-  ota_password: "secure123"
-  default_ota_port: 3232
+  storage_path: "/var/lib/ota-service/firmware"
+  max_concurrent_updates: 10
+  update_timeout: 3600
   check_interval: 300  # seconds
+  ota_password: null  # or "secure123"
+  default_ota_port: 3232
   erase_firmware_after_upload: false
 
 pushover:
@@ -325,13 +389,25 @@ pushover:
 CREATE TABLE devices (
     device_id TEXT PRIMARY KEY,
     ip_address TEXT NOT NULL,
-    mac_address TEXT NOT NULL,
     firmware_version TEXT NOT NULL,
-    ota_port INTEGER,
+    last_updated TEXT NOT NULL,
     ota_readiness_topic TEXT NOT NULL,
     ota_mode_topic TEXT NOT NULL,
-    device_state TEXT NOT NULL,
-    last_seen TEXT NOT NULL
+    uses_deep_sleep INTEGER NOT NULL,
+    ota_port INTEGER,
+    state TEXT NOT NULL DEFAULT 'idle'
+);
+```
+
+#### upload_history
+
+```sql
+CREATE TABLE upload_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id TEXT NOT NULL,
+    version TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('SUCCESS', 'FAIL')),
+    attempted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
@@ -347,7 +423,7 @@ pub enum DeviceState {
 }
 ```
 
-**Database Values**: `"Idle"`, `"NewVersionAvailableTransmitted"`, `"OtaTransmit"`
+**Database Values**: `"idle"`, `"new_version_available_transmitted"`, `"ota_transmit"`
 
 ## MQTT Topics
 
@@ -484,12 +560,12 @@ Receive: `[0x00]` (OK)
 
 ### Firmware File Naming
 
-**Format**: `{device_id}-{version}.bin`
+**Format**: `{device_id} - {version}.bin`
 
 **Examples**:
-- `esp32-001-1.0.0.bin`
-- `esp32-prod-2.1.3.bin`
-- `sensor-kitchen-1.2.0-beta.bin`
+- `esp32-001 - 1.0.0.bin`
+- `esp32-prod - 2.1.3.bin`
+- `sensor-kitchen - 1.2.0.bin`
 
 **Version Format**: Semantic versioning (MAJOR.MINOR.PATCH)
 

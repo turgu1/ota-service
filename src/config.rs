@@ -34,8 +34,6 @@ pub struct MqttConfig {
     pub password: Option<String>,
     /// Keep-alive interval in seconds
     pub keep_alive: u64,
-    /// Topic prefix for OTA service communication
-    pub ota_service_topic_prefix: String,
     /// Topic for device registration messages
     pub registration_topic: String,
 }
@@ -267,7 +265,6 @@ mod tests {
                 username: None,
                 password: None,
                 keep_alive: 60,
-                ota_service_topic_prefix: "ota/".to_string(),
                 registration_topic: "ota/registration".to_string(),
             },
             database: DatabaseConfig {

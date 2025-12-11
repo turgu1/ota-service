@@ -332,6 +332,19 @@ impl OtaService {
         let default_ota_port = self.default_ota_port;
         let erase_firmware_after_upload = self.erase_firmware_after_upload;
 
+        // Subscribe to the registration topic
+        {
+            let mqtt = mqtt_client.lock().await;
+            if let Err(e) = mqtt.subscribe(&registration_topic, QoS::AtLeastOnce).await {
+                error!(
+                    "Failed to subscribe to registration topic {}: {}",
+                    registration_topic, e
+                );
+            } else {
+                info!("Subscribed to registration topic: {}", registration_topic);
+            }
+        }
+
         tokio::spawn(async move {
             info!("Unified MQTT message listener started");
             loop {
@@ -446,16 +459,35 @@ impl OtaService {
                                                                     let mut db =
                                                                         database.lock().await;
                                                                     let _ = db.update_device_firmware_version(&device_id, &new_firmware.version);
+                                                                    let _ = db.add_upload_history(
+                                                                        &device_id,
+                                                                        &new_firmware.version,
+                                                                        true,
+                                                                    );
                                                                     let _ = db.update_device_state(
                                                                         &device_id,
                                                                         DeviceState::Idle,
                                                                     );
                                                                     drop(db);
+
                                                                     if erase_firmware_after_upload {
-                                                                        let _ = firmware_manager
-                                                                            .delete_firmware(
-                                                                                &new_firmware,
-                                                                            );
+                                                                        match firmware_manager.delete_firmware_and_older_versions(
+                                                                            &device_id,
+                                                                            &new_firmware.version,
+                                                                        ) {
+                                                                            Ok(count) => {
+                                                                                info!(
+                                                                                    "Deleted {} firmware file(s) for device {}",
+                                                                                    count, device_id
+                                                                                );
+                                                                            }
+                                                                            Err(e) => {
+                                                                                warn!(
+                                                                                    "Failed to delete old firmware for {}: {}",
+                                                                                    device_id, e
+                                                                                );
+                                                                            }
+                                                                        }
                                                                     }
                                                                 }
                                                                 Err(e) => {
@@ -465,6 +497,11 @@ impl OtaService {
                                                                     );
                                                                     let mut db =
                                                                         database.lock().await;
+                                                                    let _ = db.add_upload_history(
+                                                                        &device_id,
+                                                                        &new_firmware.version,
+                                                                        false,
+                                                                    );
                                                                     let _ = db.update_device_state(
                                                                         &device_id,
                                                                         DeviceState::Idle,

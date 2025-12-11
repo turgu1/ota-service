@@ -518,7 +518,6 @@ mqtt:
   host: "mqtt.example.com"
   port: 1883
   client_id: "ota-service"
-  ota_service_topic_prefix: "devices"
 
 database:
   path: "/var/lib/ota-service/devices.db"
@@ -526,8 +525,8 @@ database:
 
 service:
   name: "ota-service"
-  port: 8080
   log_level: "info"
+  log_file_path: "/var/log/ota-service/ota-service.log"
 
 firmware:
   storage_path: "/var/lib/ota-service/firmware"

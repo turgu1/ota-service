@@ -139,10 +139,10 @@ wifi:
       SUCCESS          FAILURE
          │                │
          ▼                ▼
-    ┌────────┐      ┌──────────┐
-    │Device  │      │ Log error│
-    │Restarts│      │ Retry    │
-    └────────┘      └──────────┘
+    ┌─────────┐     ┌───────────┐
+    │Device   │     │ Log error │
+    │Restarts │     │ Retry     │
+    └─────────┘     └───────────┘
 ```
 
 ## Common Scenarios

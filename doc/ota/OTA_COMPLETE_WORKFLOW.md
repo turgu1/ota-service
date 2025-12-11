@@ -293,9 +293,10 @@ Command: 0x81 (ERROR_INVALID_HASH) - MD5 mismatch
    INFO: OTA successful for esp32-001
    ```
 
-3. **Optional: Delete firmware file**
+3. **Optional: Delete firmware files**
    - If `erase_firmware_after_upload` is enabled
-   - Removes `esp32-001-1.1.0.bin`
+   - Removes the uploaded firmware file and all older versions for the device
+   - Example: Deletes `esp32-001 - 1.1.0.bin`, `esp32-001 - 1.0.0.bin`, etc.
 
 4. **Clear retained ready message**
    ```
@@ -321,19 +322,19 @@ Command: 0x81 (ERROR_INVALID_HASH) - MD5 mismatch
 
 ```
 ┌──────┐
-│ Idle │ ◄─────────────────────┐
-└──┬───┘                        │
-   │                            │
-   │ Newer firmware found       │
-   ▼                            │
-┌──────────────────────────────┐│
-│ NewVersionAvailableTransmitted││
-└──┬───────────────────────────┘│
-   │                            │
-   │ Device sends OTA-READY     │
-   ▼                            │
-┌─────────────┐                 │
-│ OtaTransmit │─────────────────┘
+│ Idle │ ◄────────────────────────┐
+└──┬───┘                          │
+   │                              │
+   │ Newer firmware found         │
+   ▼                              │
+┌────────────────────────────────┐│
+│ NewVersionAvailableTransmitted ││
+└──┬─────────────────────────────┘│
+   │                              │
+   │ Device sends OTA-READY       │
+   ▼                              │
+┌─────────────┐                   │
+│ OtaTransmit │───────────────────┘
 └─────────────┘   Update complete
                   or error
 ```
@@ -461,9 +462,9 @@ T+0:22  - Service confirms update successful
 
 **Always use semantic versioning**:
 ```
-✓ esp32-001-1.0.0.bin
-✓ esp32-001-1.1.0.bin
-✓ esp32-001-2.0.0-beta.bin
+✓ esp32-001 - 1.0.0.bin
+✓ esp32-001 - 1.1.0.bin
+✓ esp32-001 - 2.0.0.bin
 ✗ esp32-001-latest.bin
 ✗ esp32-001.bin
 ```
@@ -473,7 +474,7 @@ T+0:22  - Service confirms update successful
 **Test on a single device first**:
 ```bash
 # Deploy to test device only
-cp new-firmware.bin /var/lib/ota-service/firmware/esp32-test-2.0.0.bin
+cp new-firmware.bin "/var/lib/ota-service/firmware/esp32-test - 2.0.0.bin"
 
 # Monitor logs
 journalctl -u ota-service -f

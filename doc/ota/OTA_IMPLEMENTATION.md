@@ -90,7 +90,7 @@ pub struct PushoverConfig {
 Added to `FirmwareConfig`:
 - `ota_password: Option<String>` - Hex password for OTA authentication
 - `default_ota_port: u16` - Default OTA port (devices can override with custom port)
-- `erase_firmware_after_upload: bool` - Automatically delete firmware file after successful upload (default: false)
+- `erase_firmware_after_upload: bool` - Automatically delete firmware file and all older versions after successful upload (default: false)
 
 ### 6. **Dependencies Added to `Cargo.toml`**
 

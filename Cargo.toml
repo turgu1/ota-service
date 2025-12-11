@@ -17,5 +17,4 @@ fern = { version = "0.7.1", features = ["colored"] }
 chrono = "0.4.31"
 md5 = "0.8.0"
 sha2 = "0.10"
-version-compare = "0.2.0"
 bytes = "1.5.0"
