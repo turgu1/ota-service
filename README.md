@@ -231,21 +231,151 @@ SUCCESS: Firmware deployed successfully!
 
 ## ESPHome Device Configuration
 
-Your ESP32 devices must be running ESPHome with OTA enabled:
+Your ESP32 devices must be running ESPHome with OTA enabled and proper MQTT integration. The MQTT configuration is **required** for the OTA service to communicate with devices.
+
+### Required MQTT Topics
+
+The OTA service uses MQTT for coordination with devices:
+
+1. **Registration Topic** (`ota-service/registration`): Devices publish to this topic to register with the service
+2. **OTA Mode Topic** (`devices/<device_id>/ota-mode`): Service publishes `NEW-FIRMWARE-VERSION` to notify device
+3. **OTA Readiness Topic** (`devices/<device_id>/ready`): Device publishes `OTA-READY` when ready for firmware upload
+
+### Complete ESPHome Configuration Example
 
 ```yaml
-# ESPHome configuration
+# ESPHome configuration with OTA service integration
+substitutions:
+  device_id: esp32-kitchen
+  firmware_version: "1.0.0"  # Update this when deploying new firmware
+  ota_password: "d96112143a8c04d8b2945b226a9b95e7"  # Must match OTA service config
+
+esphome:
+  name: ${device_id}
+  platform: ESP32
+  board: esp32dev
+  
+  # Register device on boot
+  on_boot:
+    priority: -100  # Run after WiFi and MQTT are connected
+    then:
+      - delay: 5s  # Wait for MQTT connection to stabilize
+      - script.execute: register_device
+
 wifi:
   ssid: "your-ssid"
   password: "your-password"
 
+# Enable OTA updates via ESPHome protocol v2
+# This allows the OTA service to upload firmware over port 3232
 ota:
-  password: "d96112143a8c04d8b2945b226a9b95e7"  # Must match config.yaml
+  password: ${ota_password}  # Must match ota_password in OTA service config.yaml
+  port: 3232                  # Default ESPHome OTA port
 
+# MQTT configuration - REQUIRED for OTA service integration
 mqtt:
   broker: mqtt.local
-  # Device registration and readiness topics
+  port: 1883
+  username: "mqtt_user"     # Optional
+  password: "mqtt_password" # Optional
+  client_id: ${device_id}
+  
+  # Subscribe to OTA mode topic
+  # Service publishes NEW-FIRMWARE-VERSION here to notify device
+  on_message:
+    - topic: devices/${device_id}/ota-mode
+      payload: 'NEW-FIRMWARE-VERSION'
+      then:
+        - logger.log: "New firmware available, preparing for OTA update"
+        # Respond immediately that device is ready
+        - mqtt.publish:
+            topic: devices/${device_id}/ready
+            payload: "OTA-READY"
+            retain: false
+            qos: 2
+
+# Text sensor for IP address (needed for registration)
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      id: device_ip
+
+# Script to register device with OTA service
+script:
+  - id: register_device
+    then:
+      - wait_until:
+          mqtt.connected:
+      - delay: 2s
+      - lambda: |-
+          // Build registration JSON with all required fields
+          std::string ip = id(device_ip).state.c_str();
+          std::string mac = wifi::global_wifi_component->get_mac_address_pretty();
+          int rssi = wifi::global_wifi_component->wifi_rssi();
+          
+          std::string registration = "{";
+          registration += "\"device_id\":\"${device_id}\",";
+          registration += "\"ip_address\":\"" + ip + "\",";
+          registration += "\"mac_address\":\"" + mac + "\",";
+          registration += "\"firmware_version\":\"${firmware_version}\",";
+          registration += "\"ota_readiness_topic\":\"devices/${device_id}/ready\",";
+          registration += "\"ota_mode_topic\":\"devices/${device_id}/ota-mode\",";
+          registration += "\"uses_deep_sleep\":false,";
+          registration += "\"ota_port\":3232,";  // Optional: omit to use default from config
+          registration += "\"rssi\":" + std::to_string(rssi);
+          registration += "}";
+          
+          // Publish registration to OTA service
+          // Topic must match registration_topic in OTA service config.yaml
+          id(mqtt_client).publish("ota-service/registration", registration);
+          
+          ESP_LOGI("ota", "Device registered with OTA service");
 ```
+
+### MQTT Message Flow
+
+**1. Device Registration (Device → Service)**
+```json
+Topic: ota-service/registration
+Payload: {
+  "device_id": "esp32-kitchen",
+  "ip_address": "192.168.1.100",
+  "mac_address": "AA:BB:CC:DD:EE:FF",
+  "firmware_version": "1.0.0",
+  "ota_readiness_topic": "devices/esp32-kitchen/ready",
+  "ota_mode_topic": "devices/esp32-kitchen/ota-mode",
+  "uses_deep_sleep": false,
+  "ota_port": 3232,
+  "rssi": -45
+}
+```
+
+**2. Update Notification (Service → Device)**
+```
+Topic: devices/esp32-kitchen/ota-mode
+Payload: NEW-FIRMWARE-VERSION
+```
+
+**3. Readiness Confirmation (Device → Service)**
+```
+Topic: devices/esp32-kitchen/ready
+Payload: OTA-READY
+```
+
+**4. Firmware Upload (Service → Device)**
+- Service connects directly to device IP address on port 3232
+- Uses ESPHome OTA Protocol v2 over TCP (not MQTT)
+- See [doc/ota/OTA_PROTOCOL.md](doc/ota/OTA_PROTOCOL.md) for protocol details
+
+### Configuration Notes
+
+- **Registration topic** must match `mqtt.registration_topic` in OTA service config.yaml (default: `ota-service/registration`)
+- **Device topics** use pattern `devices/<device_id>/ota-mode` and `devices/<device_id>/ready`
+- **OTA password** must be identical in both ESPHome and OTA service configurations
+- **OTA port** defaults to 3232; can be customized per-device if needed
+- Devices should re-register after reboot to update IP address and firmware version
+
+For deep-sleep devices, see [esphome-examples/esp32-deep-sleep.yaml](esphome-examples/esp32-deep-sleep.yaml) for configuration that handles intermittent connectivity.
 
 ## Protocol Details
 

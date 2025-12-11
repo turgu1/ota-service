@@ -136,6 +136,15 @@ pub async fn run(config: Configuration) -> Result<(), String> {
 
     info!("OTA service is running");
 
+    // Start web server
+    let web_database = Arc::clone(&database);
+    let web_config = config.clone();
+    tokio::spawn(async move {
+        if let Err(e) = crate::web::start_web_server(web_config, web_database).await {
+            error!("Web server error: {}", e);
+        }
+    });
+
     // Keep the service running
     loop {
         tokio::time::sleep(Duration::from_secs(60)).await;
@@ -470,6 +479,7 @@ impl OtaService {
                                                                         &device_id,
                                                                         &new_firmware.version,
                                                                         true,
+                                                                        None,
                                                                     );
                                                                     let _ = db.update_device_state(
                                                                         &device_id,
@@ -515,6 +525,7 @@ impl OtaService {
                                                                         &device_id,
                                                                         &new_firmware.version,
                                                                         false,
+                                                                        Some(&e),
                                                                     );
                                                                     let _ = db.update_device_state(
                                                                         &device_id,
@@ -529,11 +540,17 @@ impl OtaService {
                                                                 e
                                                             );
                                                             let mut db = database.lock().await;
-                                                            if let Err(e) =
+                                                            if let Err(err) =
                                                                 db.increment_fail_count(&device_id)
                                                             {
-                                                                error!("Failed to increment fail count for {}: {}", device_id, e);
+                                                                error!("Failed to increment fail count for {}: {}", device_id, err);
                                                             }
+                                                            let _ = db.add_upload_history(
+                                                                &device_id,
+                                                                &new_firmware.version,
+                                                                false,
+                                                                Some(&e),
+                                                            );
                                                             let _ = db.update_device_state(
                                                                 &device_id,
                                                                 DeviceState::Idle,

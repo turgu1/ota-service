@@ -17,6 +17,8 @@ pub struct Configuration {
     /// Pushover notification configuration (optional)
     #[serde(default)]
     pub pushover: Option<PushoverConfig>,
+    /// Web interface configuration
+    pub web: WebConfig,
 }
 
 /// MQTT broker configuration
@@ -82,6 +84,19 @@ fn default_priority() -> i8 {
 
 fn default_enabled() -> bool {
     true
+}
+
+/// Web interface configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebConfig {
+    /// Web server port
+    pub port: u16,
+    /// Username for web interface authentication
+    pub username: String,
+    /// Password for web interface authentication
+    pub password: String,
+    /// Refresh period in seconds for updating device table
+    pub refresh_period: u64,
 }
 
 /// Firmware update configuration
@@ -286,6 +301,12 @@ mod tests {
                 erase_firmware_after_upload: false,
             },
             pushover: None,
+            web: WebConfig {
+                port: 8080,
+                username: "admin".to_string(),
+                password: "admin".to_string(),
+                refresh_period: 5,
+            },
         };
 
         assert_eq!(config.mqtt_connection_string(), "localhost:1883");

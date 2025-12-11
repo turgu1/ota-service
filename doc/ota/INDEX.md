@@ -178,6 +178,7 @@ impl Database {
         device_id: &str,
         version: &str,
         success: bool,
+        fail_reason: Option<&str>,
     ) -> Result<(), String>
     
     /// Get upload history for a device
@@ -424,7 +425,8 @@ CREATE TABLE upload_history (
     device_id TEXT NOT NULL,
     version TEXT NOT NULL,
     state TEXT NOT NULL CHECK(state IN ('SUCCESS', 'FAIL')),
-    attempted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    attempted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fail_reason TEXT
 );
 ```
 

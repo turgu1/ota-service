@@ -62,6 +62,16 @@ pub struct Device {
     pub rssi: i32,
 }
 
+/// Upload history record from the database
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UploadHistoryEntry {
+    pub device_id: String,
+    pub version: String,
+    pub state: String,
+    pub attempted_at: String,
+    pub fail_reason: Option<String>,
+}
+
 /// SQLite database for device management
 pub struct Database {
     connection: Connection,
@@ -122,7 +132,8 @@ impl Database {
                 device_id TEXT NOT NULL,
                 version TEXT NOT NULL,
                 state TEXT NOT NULL CHECK(state IN ('SUCCESS', 'FAIL')),
-                attempted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                attempted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                fail_reason TEXT
             )
         ";
 
@@ -509,6 +520,7 @@ impl Database {
     /// * `device_id` - Device identifier
     /// * `version` - Firmware version that was uploaded
     /// * `success` - Whether the upload succeeded (true) or failed (false)
+    /// * `fail_reason` - Optional failure reason (only relevant when success is false)
     ///
     /// # Returns
     /// Result indicating success or error
@@ -517,6 +529,7 @@ impl Database {
         device_id: &str,
         version: &str,
         success: bool,
+        fail_reason: Option<&str>,
     ) -> Result<(), String> {
         let state = if success { "SUCCESS" } else { "FAIL" };
         debug!(
@@ -524,9 +537,11 @@ impl Database {
             device_id, version, state
         );
 
+        let now = chrono::Local::now().to_rfc3339();
+
         let query = "
-            INSERT INTO upload_history (device_id, version, state, attempted_at)
-            VALUES (?, ?, ?, datetime('now'))
+            INSERT INTO upload_history (device_id, version, state, attempted_at, fail_reason)
+            VALUES (?, ?, ?, ?, ?)
         ";
 
         let mut statement = self
@@ -543,6 +558,12 @@ impl Database {
         statement
             .bind((3, state))
             .map_err(|e| format!("Failed to bind state: {}", e))?;
+        statement
+            .bind((4, now.as_str()))
+            .map_err(|e| format!("Failed to bind attempted_at: {}", e))?;
+        statement
+            .bind((5, fail_reason.unwrap_or("")))
+            .map_err(|e| format!("Failed to bind fail_reason: {}", e))?;
 
         statement
             .next()
@@ -639,6 +660,65 @@ impl Database {
                 .map_err(|e| format!("Failed to read attempted_at: {}", e))?;
 
             history.push((device_id, version, state, attempted_at));
+        }
+
+        debug!("Found {} upload history records", history.len());
+        Ok(history)
+    }
+
+    /// Get last N upload history records with all fields including fail_reason
+    ///
+    /// # Arguments
+    /// * `limit` - Maximum number of records to retrieve
+    ///
+    /// # Returns
+    /// Result containing a vector of UploadHistoryEntry
+    pub fn get_recent_upload_history(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<UploadHistoryEntry>, String> {
+        debug!("Getting last {} upload history records", limit);
+
+        let query = format!(
+            "SELECT device_id, version, state, attempted_at, fail_reason
+             FROM upload_history
+             ORDER BY attempted_at DESC
+             LIMIT {}",
+            limit
+        );
+
+        let mut statement = self
+            .connection
+            .prepare(&query)
+            .map_err(|e| format!("Failed to prepare upload history query: {}", e))?;
+
+        let mut history = Vec::new();
+
+        while let Ok(State::Row) = statement.next() {
+            let device_id = statement
+                .read::<String, _>("device_id")
+                .map_err(|e| format!("Failed to read device_id: {}", e))?;
+            let version = statement
+                .read::<String, _>("version")
+                .map_err(|e| format!("Failed to read version: {}", e))?;
+            let state = statement
+                .read::<String, _>("state")
+                .map_err(|e| format!("Failed to read state: {}", e))?;
+            let attempted_at = statement
+                .read::<String, _>("attempted_at")
+                .map_err(|e| format!("Failed to read attempted_at: {}", e))?;
+            let fail_reason = statement
+                .read::<Option<String>, _>("fail_reason")
+                .ok()
+                .flatten();
+
+            history.push(UploadHistoryEntry {
+                device_id,
+                version,
+                state,
+                attempted_at,
+                fail_reason,
+            });
         }
 
         debug!("Found {} upload history records", history.len());

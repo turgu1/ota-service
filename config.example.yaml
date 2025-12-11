@@ -88,3 +88,18 @@ pushover:
   #  1 = high (bypass quiet hours)
   #  2 = emergency (require confirmation)
   priority: 0
+
+# Web interface configuration
+web:
+  # Web server port
+  port: 8080
+  
+  # Username for web interface authentication
+  username: "admin"
+  
+  # Password for web interface authentication
+  password: "admin"
+  
+  # Refresh period in seconds for updating device table
+  # How often the browser should request updated device data
+  refresh_period: 5

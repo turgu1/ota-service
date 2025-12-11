@@ -7,6 +7,7 @@ mod ota_client;
 mod pushover;
 mod service;
 mod version;
+mod web;
 
 use config::Configuration;
 use fern::colors::{Color, ColoredLevelConfig};
