@@ -82,6 +82,59 @@
             }
         }
 
+        .restart-btn {
+            background: #f59e0b;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+            display: none;
+        }
+
+        .restart-btn.show {
+            display: inline-block;
+        }
+
+        .restart-btn:hover {
+            background: #d97706;
+        }
+
+        .coffee-btn {
+            background: #FFDD00;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .coffee-btn:hover {
+            background: #FFE84D;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .page-footer {
+            text-align: center;
+            padding: 20px 0;
+            margin-top: 20px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .page-footer p {
+            margin: 10px 0;
+            color: #666;
+            font-size: 14px;
+        }
+
         .logout-btn {
             background: #ef4444;
             color: white;
@@ -415,6 +468,151 @@
             padding: 20px;
             text-align: center;
         }
+
+        .config-value-editable {
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .config-value-editable:hover {
+            background-color: #f3f4f6;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.2s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 0;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-content h3 {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .modal-body label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .modal-body input[type="text"],
+        .modal-body input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e5e7eb;
+            border-radius: 5px;
+            font-size: 14px;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+        }
+
+        .modal-body input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .modal-hint {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: -10px;
+            margin-bottom: 15px;
+        }
+
+        .modal-error {
+            color: #ef4444;
+            background: #fee2e2;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .modal-footer {
+            padding: 15px 20px;
+            background: #f9fafb;
+            border-radius: 0 0 10px 10px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .btn-primary,
+        .btn-secondary {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background: #d1d5db;
+        }
     </style>
 </head>
 
@@ -438,6 +636,12 @@
             </div>
             <button type="submit" class="login-btn">Login</button>
         </form>
+        <div class="page-footer">
+            <p>Made with ❤️ for the ESPHome community</p>
+            <a href="https://paypal.me/turgu1" target="_blank" class="coffee-btn" title="Support this project">☕ Buy me
+                a
+                coffee</a>
+        </div>
     </div>
 
     <!-- Main Content -->
@@ -450,6 +654,7 @@
             <div class="status">
                 <div class="status-indicator" id="statusIndicator"></div>
                 <span id="statusText">Connected</span>
+                <button class="restart-btn" id="restartBtn" onclick="restartApplication()">Restart</button>
                 <button class="logout-btn" onclick="logout()">Logout</button>
             </div>
         </div>
@@ -539,6 +744,34 @@
         </div>
     </div>
 
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <h3 id="modalTitle">Edit Configuration</h3>
+            <div class="modal-body">
+                <div id="passwordAuthSection" style="display: none;">
+                    <label for="adminPassword">Admin Password:</label>
+                    <input type="password" id="adminPassword" placeholder="Enter admin password">
+                    <p class="modal-hint">Authentication required to edit configuration</p>
+                </div>
+                <div id="editSection" style="display: none;">
+                    <label id="editLabel" for="editValue"></label>
+                    <input type="text" id="editValue" placeholder="Enter new value">
+                    <div id="currentPasswordSection" style="display: none;">
+                        <label for="currentPassword">Current Admin Password:</label>
+                        <input type="password" id="currentPassword" placeholder="Re-enter admin password">
+                        <p class="modal-hint">Password changes require admin authentication</p>
+                    </div>
+                </div>
+                <div id="modalError" class="modal-error"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="modalCancel" class="btn-secondary">Cancel</button>
+                <button id="modalSave" class="btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let ws = null;
         let isAuthenticated = false;
@@ -548,6 +781,10 @@
         let sortDirection = localStorage.getItem('sortDirection') || 'asc';
         let logSortColumn = localStorage.getItem('logSortColumn') || null;
         let logSortDirection = localStorage.getItem('logSortDirection') || 'desc';
+        let editSessionTimestamp = null;
+        let currentConfig = null;
+        let editSessionTimeout = 15; // Default to 15 minutes, will be loaded from config
+        let configWasEdited = false;
 
         // Check if user is already logged in
         window.addEventListener('load', async () => {
@@ -613,6 +850,35 @@
             document.getElementById('loginContainer').classList.remove('hidden');
             document.getElementById('mainContent').classList.add('hidden');
             document.getElementById('loginForm').reset();
+        }
+
+        async function restartApplication() {
+            if (!confirm('Are you sure you want to restart the OTA service? This will disconnect all clients temporarily.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/restart', { method: 'POST' });
+                if (response.ok) {
+                    alert('Service restart initiated. The page will reload in a few seconds...');
+                    // Hide restart button
+                    configWasEdited = false;
+                    document.getElementById('restartBtn').classList.remove('show');
+                    // Close WebSocket
+                    if (ws) {
+                        ws.close();
+                    }
+                    // Wait a bit and reload the page
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 3000);
+                } else {
+                    const error = await response.json();
+                    alert('Failed to restart service: ' + (error.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Failed to restart service: ' + error.message);
+            }
         }
 
         function connectWebSocket() {
@@ -1064,6 +1330,10 @@
                     throw new Error('Failed to fetch configuration');
                 }
                 const config = await response.json();
+                // Load edit session timeout from config
+                if (config.web && config.web.edit_session_timeout) {
+                    editSessionTimeout = config.web.edit_session_timeout;
+                }
                 displayConfig(config);
             } catch (error) {
                 document.getElementById('configContent').innerHTML =
@@ -1072,21 +1342,34 @@
         }
 
         function displayConfig(config) {
+            currentConfig = config;
             const content = document.getElementById('configContent');
 
             let html = '<div class="config-sections">';
+
+            // Helper function to create editable field
+            const editableField = (section, key, value, isPassword = false) => {
+                const displayValue = escapeHtml(value);
+                const classes = isPassword ? 'config-value-editable masked-value' : 'config-value-editable';
+                return `<span class="${classes}" 
+                        data-section="${section}" 
+                        data-key="${key}" 
+                        data-password="${isPassword}" 
+                        onclick="openEditModal('${section}', '${key}', ${isPassword})"
+                        title="Click to edit">${displayValue}</span>`;
+            };
 
             // MQTT Configuration
             html += '<div class="config-section">';
             html += '<h2>MQTT Configuration</h2>';
             html += '<table class="config-table">';
-            html += `<tr><td class="config-key">Host:</td><td>${escapeHtml(config.mqtt.host)}</td></tr>`;
-            html += `<tr><td class="config-key">Port:</td><td>${config.mqtt.port}</td></tr>`;
-            html += `<tr><td class="config-key">Client ID:</td><td>${escapeHtml(config.mqtt.client_id)}</td></tr>`;
-            html += `<tr><td class="config-key">Username:</td><td class="masked-value">${escapeHtml(config.mqtt.username)}</td></tr>`;
-            html += `<tr><td class="config-key">Password:</td><td class="masked-value">${escapeHtml(config.mqtt.password)}</td></tr>`;
-            html += `<tr><td class="config-key">Keep Alive:</td><td>${config.mqtt.keep_alive}s</td></tr>`;
-            html += `<tr><td class="config-key">Registration Topic:</td><td>${escapeHtml(config.mqtt.registration_topic)}</td></tr>`;
+            html += `<tr><td class="config-key">Host:</td><td>${editableField('mqtt', 'host', config.mqtt.host)}</td></tr>`;
+            html += `<tr><td class="config-key">Port:</td><td>${editableField('mqtt', 'port', config.mqtt.port)}</td></tr>`;
+            html += `<tr><td class="config-key">Client ID:</td><td>${editableField('mqtt', 'client_id', config.mqtt.client_id)}</td></tr>`;
+            html += `<tr><td class="config-key">Username:</td><td>${editableField('mqtt', 'username', config.mqtt.username)}</td></tr>`;
+            html += `<tr><td class="config-key">Password:</td><td>${editableField('mqtt', 'password', config.mqtt.password, true)}</td></tr>`;
+            html += `<tr><td class="config-key">Keep Alive:</td><td>${editableField('mqtt', 'keep_alive', config.mqtt.keep_alive + 's')}</td></tr>`;
+            html += `<tr><td class="config-key">Registration Topic:</td><td>${editableField('mqtt', 'registration_topic', config.mqtt.registration_topic)}</td></tr>`;
             html += '</table>';
             html += '</div>';
 
@@ -1094,8 +1377,8 @@
             html += '<div class="config-section">';
             html += '<h2>Database Configuration</h2>';
             html += '<table class="config-table">';
-            html += `<tr><td class="config-key">Path:</td><td>${escapeHtml(config.database.path)}</td></tr>`;
-            html += `<tr><td class="config-key">Pool Size:</td><td>${config.database.pool_size}</td></tr>`;
+            html += `<tr><td class="config-key">Path:</td><td>${editableField('database', 'path', config.database.path)}</td></tr>`;
+            html += `<tr><td class="config-key">Pool Size:</td><td>${editableField('database', 'pool_size', config.database.pool_size)}</td></tr>`;
             html += '</table>';
             html += '</div>';
 
@@ -1103,9 +1386,9 @@
             html += '<div class="config-section">';
             html += '<h2>Service Configuration</h2>';
             html += '<table class="config-table">';
-            html += `<tr><td class="config-key">Name:</td><td>${escapeHtml(config.service.name)}</td></tr>`;
-            html += `<tr><td class="config-key">Log Level:</td><td>${escapeHtml(config.service.log_level)}</td></tr>`;
-            html += `<tr><td class="config-key">Log File Path:</td><td>${escapeHtml(config.service.log_file_path || 'None')}</td></tr>`;
+            html += `<tr><td class="config-key">Name:</td><td>${editableField('service', 'name', config.service.name)}</td></tr>`;
+            html += `<tr><td class="config-key">Log Level:</td><td>${editableField('service', 'log_level', config.service.log_level)}</td></tr>`;
+            html += `<tr><td class="config-key">Log File Path:</td><td>${editableField('service', 'log_file_path', config.service.log_file_path || 'None')}</td></tr>`;
             html += '</table>';
             html += '</div>';
 
@@ -1113,13 +1396,13 @@
             html += '<div class="config-section">';
             html += '<h2>Firmware Configuration</h2>';
             html += '<table class="config-table">';
-            html += `<tr><td class="config-key">Storage Path:</td><td>${escapeHtml(config.firmware.storage_path)}</td></tr>`;
-            html += `<tr><td class="config-key">Max Concurrent Updates:</td><td>${config.firmware.max_concurrent_updates}</td></tr>`;
-            html += `<tr><td class="config-key">Check Interval:</td><td>${config.firmware.check_interval}s</td></tr>`;
-            html += `<tr><td class="config-key">Update Timeout:</td><td>${config.firmware.update_timeout}s</td></tr>`;
-            html += `<tr><td class="config-key">OTA Password:</td><td class="masked-value">${escapeHtml(config.firmware.ota_password || 'None')}</td></tr>`;
-            html += `<tr><td class="config-key">Default OTA Port:</td><td>${config.firmware.default_ota_port}</td></tr>`;
-            html += `<tr><td class="config-key">Erase Firmware After Upload:</td><td>${config.firmware.erase_firmware_after_upload}</td></tr>`;
+            html += `<tr><td class="config-key">Storage Path:</td><td>${editableField('firmware', 'storage_path', config.firmware.storage_path)}</td></tr>`;
+            html += `<tr><td class="config-key">Max Concurrent Updates:</td><td>${editableField('firmware', 'max_concurrent_updates', config.firmware.max_concurrent_updates)}</td></tr>`;
+            html += `<tr><td class="config-key">Check Interval:</td><td>${editableField('firmware', 'check_interval', config.firmware.check_interval + 's')}</td></tr>`;
+            html += `<tr><td class="config-key">Update Timeout:</td><td>${editableField('firmware', 'update_timeout', config.firmware.update_timeout + 's')}</td></tr>`;
+            html += `<tr><td class="config-key">OTA Password:</td><td>${editableField('firmware', 'ota_password', config.firmware.ota_password || 'None', true)}</td></tr>`;
+            html += `<tr><td class="config-key">Default OTA Port:</td><td>${editableField('firmware', 'default_ota_port', config.firmware.default_ota_port)}</td></tr>`;
+            html += `<tr><td class="config-key">Erase Firmware After Upload:</td><td>${editableField('firmware', 'erase_firmware_after_upload', config.firmware.erase_firmware_after_upload)}</td></tr>`;
             html += '</table>';
             html += '</div>';
 
@@ -1128,9 +1411,9 @@
                 html += '<div class="config-section">';
                 html += '<h2>Pushover Configuration</h2>';
                 html += '<table class="config-table">';
-                html += `<tr><td class="config-key">Enabled:</td><td>${config.pushover.enabled}</td></tr>`;
-                html += `<tr><td class="config-key">API Token:</td><td class="masked-value">${escapeHtml(config.pushover.api_token)}</td></tr>`;
-                html += `<tr><td class="config-key">User Key:</td><td class="masked-value">${escapeHtml(config.pushover.user_key)}</td></tr>`;
+                html += `<tr><td class="config-key">Enabled:</td><td>${editableField('pushover', 'enabled', config.pushover.enabled)}</td></tr>`;
+                html += `<tr><td class="config-key">API Token:</td><td>${editableField('pushover', 'api_token', config.pushover.api_token, true)}</td></tr>`;
+                html += `<tr><td class="config-key">User Key:</td><td>${editableField('pushover', 'user_key', config.pushover.user_key, true)}</td></tr>`;
                 html += '</table>';
                 html += '</div>';
             }
@@ -1139,16 +1422,206 @@
             html += '<div class="config-section">';
             html += '<h2>Web Configuration</h2>';
             html += '<table class="config-table">';
-            html += `<tr><td class="config-key">Port:</td><td>${config.web.port}</td></tr>`;
-            html += `<tr><td class="config-key">Username:</td><td class="masked-value">${escapeHtml(config.web.username)}</td></tr>`;
-            html += `<tr><td class="config-key">Password:</td><td class="masked-value">${escapeHtml(config.web.password)}</td></tr>`;
-            html += `<tr><td class="config-key">Refresh Period:</td><td>${config.web.refresh_period}s</td></tr>`;
+            html += `<tr><td class="config-key">Port:</td><td>${editableField('web', 'port', config.web.port)}</td></tr>`;
+            html += `<tr><td class="config-key">Username:</td><td>${editableField('web', 'username', config.web.username)}</td></tr>`;
+            html += `<tr><td class="config-key">Password:</td><td>${editableField('web', 'password', config.web.password, true)}</td></tr>`;
+            html += `<tr><td class="config-key">Refresh Period:</td><td>${editableField('web', 'refresh_period', config.web.refresh_period + 's')}</td></tr>`;
             html += '</table>';
             html += '</div>';
 
             html += '</div>';
             content.innerHTML = html;
         }
+
+        // Edit Modal Functions
+        let currentEditSection = null;
+        let currentEditKey = null;
+        let currentEditIsPassword = false;
+
+        function openEditModal(section, key, isPassword) {
+            currentEditSection = section;
+            currentEditKey = key;
+            currentEditIsPassword = isPassword;
+
+            const modal = document.getElementById('editModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const passwordAuthSection = document.getElementById('passwordAuthSection');
+            const editSection = document.getElementById('editSection');
+            const currentPasswordSection = document.getElementById('currentPasswordSection');
+            const editLabel = document.getElementById('editLabel');
+            const editValue = document.getElementById('editValue');
+            const modalError = document.getElementById('modalError');
+
+            // Clear previous values
+            document.getElementById('adminPassword').value = '';
+            document.getElementById('editValue').value = '';
+            document.getElementById('currentPassword').value = '';
+            modalError.style.display = 'none';
+            modalError.textContent = '';
+
+            // Set title
+            modalTitle.textContent = `Edit ${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`;
+
+            // Check if we need authentication (15 minute session)
+            const now = Date.now();
+            const needsAuth = !editSessionTimestamp || (now - editSessionTimestamp) > editSessionTimeout * 60 * 1000;
+
+            if (needsAuth) {
+                // Show password authentication first
+                passwordAuthSection.style.display = 'block';
+                editSection.style.display = 'none';
+                document.getElementById('modalSave').textContent = 'Authenticate';
+            } else {
+                // Already authenticated, go straight to edit
+                showEditSection();
+            }
+
+            modal.style.display = 'block';
+        }
+
+        function showEditSection() {
+            const passwordAuthSection = document.getElementById('passwordAuthSection');
+            const editSection = document.getElementById('editSection');
+            const currentPasswordSection = document.getElementById('currentPasswordSection');
+            const editLabel = document.getElementById('editLabel');
+            const editValue = document.getElementById('editValue');
+
+            passwordAuthSection.style.display = 'none';
+            editSection.style.display = 'block';
+
+            // Get current value
+            let currentValue = currentConfig[currentEditSection][currentEditKey];
+            if (typeof currentValue === 'string' && currentValue.endsWith('s') &&
+                ['keep_alive', 'check_interval', 'update_timeout', 'refresh_period'].includes(currentEditKey)) {
+                currentValue = currentValue.slice(0, -1); // Remove 's' suffix
+            }
+
+            editLabel.textContent = `New Value:`;
+            editValue.value = currentEditIsPassword ? '' : currentValue;
+            editValue.type = currentEditIsPassword ? 'password' : 'text';
+
+            // Show additional password field for password changes
+            currentPasswordSection.style.display = currentEditIsPassword ? 'block' : 'none';
+
+            document.getElementById('modalSave').textContent = 'Save';
+        }
+
+        async function handleModalSave() {
+            const modalError = document.getElementById('modalError');
+            const modalSave = document.getElementById('modalSave');
+
+            modalError.style.display = 'none';
+            modalError.textContent = '';
+
+            if (modalSave.textContent === 'Authenticate') {
+                // Authenticate admin
+                const adminPassword = document.getElementById('adminPassword').value;
+                if (!adminPassword) {
+                    modalError.textContent = 'Please enter admin password';
+                    modalError.style.display = 'block';
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/api/config/validate-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password: adminPassword })
+                    });
+
+                    if (response.ok) {
+                        editSessionTimestamp = Date.now();
+                        showEditSection();
+                    } else {
+                        const error = await response.json();
+                        modalError.textContent = error.error || 'Invalid password';
+                        modalError.style.display = 'block';
+                    }
+                } catch (error) {
+                    modalError.textContent = 'Authentication failed: ' + error.message;
+                    modalError.style.display = 'block';
+                }
+            } else {
+                // Save the edit
+                const newValue = document.getElementById('editValue').value;
+
+                if (!newValue && !currentEditIsPassword) {
+                    modalError.textContent = 'Value cannot be empty';
+                    modalError.style.display = 'block';
+                    return;
+                }
+
+                let passwordToValidate = null;
+                if (currentEditIsPassword) {
+                    passwordToValidate = document.getElementById('currentPassword').value;
+                    if (!passwordToValidate) {
+                        modalError.textContent = 'Admin password required for password changes';
+                        modalError.style.display = 'block';
+                        return;
+                    }
+                }
+
+                try {
+                    const response = await fetch('/api/config/update', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            section: currentEditSection,
+                            key: currentEditKey,
+                            value: newValue,
+                            admin_password: passwordToValidate
+                        })
+                    });
+
+                    if (response.ok) {
+                        closeEditModal();
+                        // Mark that config was edited and show restart button
+                        configWasEdited = true;
+                        document.getElementById('restartBtn').classList.add('show');
+                        // Refresh config display
+                        await fetchConfig();
+                        alert('Configuration updated successfully. Please restart the service for changes to take full effect.');
+                    } else {
+                        const error = await response.json();
+                        modalError.textContent = error.error || 'Failed to update configuration';
+                        modalError.style.display = 'block';
+                    }
+                } catch (error) {
+                    modalError.textContent = 'Update failed: ' + error.message;
+                    modalError.style.display = 'block';
+                }
+            }
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+            currentEditSection = null;
+            currentEditKey = null;
+            currentEditIsPassword = false;
+        }
+
+        // Modal event listeners
+        document.getElementById('modalCancel').addEventListener('click', closeEditModal);
+        document.getElementById('modalSave').addEventListener('click', handleModalSave);
+
+        // Close modal when clicking outside
+        window.addEventListener('click', (event) => {
+            const modal = document.getElementById('editModal');
+            if (event.target === modal) {
+                closeEditModal();
+            }
+        });
+
+        // Handle Enter key in modal inputs
+        document.getElementById('adminPassword').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleModalSave();
+        });
+        document.getElementById('editValue').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleModalSave();
+        });
+        document.getElementById('currentPassword').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleModalSave();
+        });
     </script>
 </body>
 

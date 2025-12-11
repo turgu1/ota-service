@@ -1,4 +1,5 @@
 use log::{debug, error, info};
+use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::time::Duration;
@@ -15,6 +16,7 @@ const OTA_VERSION_2_0: u8 = 2;
 // Response codes
 const RESPONSE_OK: u8 = 0x00;
 const RESPONSE_REQUEST_AUTH: u8 = 0x01;
+const RESPONSE_REQUEST_AUTH_SHA256: u8 = 0x02;
 
 const RESPONSE_HEADER_OK: u8 = 0x40;
 const RESPONSE_AUTH_OK: u8 = 0x41;
@@ -35,6 +37,9 @@ const RESPONSE_ERROR_UNKNOWN: u8 = 0xFF;
 
 // Upload block size (8KB chunks)
 const UPLOAD_BLOCK_SIZE: usize = 8192;
+
+// Feature flags
+const FEATURE_SUPPORTS_SHA256: u8 = 0x02;
 
 /// OTA client for ESPHome devices
 pub struct OtaClient {
@@ -144,8 +149,8 @@ impl OtaClient {
     fn exchange_features(&mut self) -> Result<(), String> {
         debug!("Exchanging features");
 
-        // Send our features (we don't support compression or SHA256)
-        let features = 0u8;
+        // Send our features (we support SHA256 but not compression)
+        let features = FEATURE_SUPPORTS_SHA256;
         self.stream
             .write_all(&[features])
             .map_err(|e| format!("Failed to send features: {}", e))?;
@@ -186,10 +191,11 @@ impl OtaClient {
                 info!("Device requires MD5 authentication");
                 self.authenticate_md5()
             }
-            other => Err(format!(
-                "Unexpected auth response: 0x{:02X} (SHA256 not supported)",
-                other
-            )),
+            RESPONSE_REQUEST_AUTH_SHA256 => {
+                info!("Device requires SHA256 authentication");
+                self.authenticate_sha256()
+            }
+            other => Err(format!("Unexpected auth response: 0x{:02X}", other)),
         }
     }
 
@@ -247,6 +253,71 @@ impl OtaClient {
             Ok(())
         } else {
             Err(format!("Authentication failed: 0x{:02X}", auth_response[0]))
+        }
+    }
+
+    /// Authenticate using SHA256 challenge-response
+    fn authenticate_sha256(&mut self) -> Result<(), String> {
+        let password = self
+            .password
+            .as_ref()
+            .ok_or_else(|| "Device requires password but none provided".to_string())?
+            .clone();
+
+        // Receive 64-byte hex nonce from device (32 bytes as hex string)
+        let mut nonce = [0u8; 64];
+        self.read_with_timeout(&mut nonce, "nonce")?;
+
+        let nonce_str =
+            std::str::from_utf8(&nonce).map_err(|e| format!("Invalid nonce UTF-8: {}", e))?;
+        debug!("Received SHA256 nonce: {}", nonce_str);
+
+        // Generate cnonce (SHA256 of random value)
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let random_val = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+            .to_string();
+
+        let mut hasher = Sha256::new();
+        hasher.update(random_val.as_bytes());
+        let cnonce = format!("{:x}", hasher.finalize());
+        debug!("Generated SHA256 cnonce: {}", cnonce);
+
+        // Send cnonce
+        self.stream
+            .write_all(cnonce.as_bytes())
+            .map_err(|e| format!("Failed to send cnonce: {}", e))?;
+
+        // Calculate authentication result: SHA256(password + nonce + cnonce)
+        let mut auth_input = Vec::new();
+        auth_input.extend_from_slice(password.as_bytes());
+        auth_input.extend_from_slice(&nonce);
+        auth_input.extend_from_slice(cnonce.as_bytes());
+
+        let mut hasher = Sha256::new();
+        hasher.update(&auth_input);
+        let auth_result = format!("{:x}", hasher.finalize());
+        debug!("Sending SHA256 auth result");
+
+        // Send auth result
+        self.stream
+            .write_all(auth_result.as_bytes())
+            .map_err(|e| format!("Failed to send auth result: {}", e))?;
+
+        // Wait for auth confirmation
+        let mut auth_response = [0u8; 1];
+        self.read_with_timeout(&mut auth_response, "auth response")?;
+
+        if auth_response[0] == RESPONSE_AUTH_OK {
+            info!("SHA256 authentication successful");
+            Ok(())
+        } else {
+            Err(format!(
+                "SHA256 authentication failed: 0x{:02X}",
+                auth_response[0]
+            ))
         }
     }
 

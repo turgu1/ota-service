@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 use tokio::time;
 
 /// Run the OTA service with the given configuration
-pub async fn run(config: Configuration) -> Result<(), String> {
+pub async fn run(config: Configuration, config_path: String) -> Result<(), String> {
     info!("Initializing OTA service components");
 
     // Initialize database
@@ -139,8 +139,11 @@ pub async fn run(config: Configuration) -> Result<(), String> {
     // Start web server
     let web_database = Arc::clone(&database);
     let web_config = config.clone();
+    let web_config_path = config_path.clone();
     tokio::spawn(async move {
-        if let Err(e) = crate::web::start_web_server(web_config, web_database).await {
+        if let Err(e) =
+            crate::web::start_web_server(web_config, web_config_path, web_database).await
+        {
             error!("Web server error: {}", e);
         }
     });

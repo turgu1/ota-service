@@ -97,6 +97,8 @@ pub struct WebConfig {
     pub password: String,
     /// Refresh period in seconds for updating device table
     pub refresh_period: u64,
+    /// Edit session timeout in minutes for configuration changes
+    pub edit_session_timeout: u64,
 }
 
 /// Firmware update configuration
@@ -306,6 +308,7 @@ mod tests {
                 username: "admin".to_string(),
                 password: "admin".to_string(),
                 refresh_period: 5,
+                edit_session_timeout: 15,
             },
         };
 

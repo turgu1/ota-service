@@ -26,6 +26,7 @@ const SESSION_USER_KEY: &str = "user_id";
 pub struct AppState {
     pub database: Arc<Mutex<Database>>,
     pub config: Configuration,
+    pub config_path: String,
 }
 
 /// Login form data
@@ -41,6 +42,27 @@ pub struct LoginForm {
 pub struct LoginResponse {
     success: bool,
     message: String,
+}
+
+/// Password validation request
+#[derive(Debug, Deserialize)]
+pub struct ValidatePasswordRequest {
+    password: String,
+}
+
+/// Config update request
+#[derive(Debug, Deserialize)]
+pub struct ConfigUpdateRequest {
+    section: String,
+    key: String,
+    value: String,
+    admin_password: Option<String>,
+}
+
+/// Generic error response
+#[derive(Debug, Serialize)]
+pub struct ErrorResponse {
+    error: String,
 }
 
 /// Device list response
@@ -111,6 +133,7 @@ pub struct MaskedWebConfig {
     pub username: String,
     pub password: String,
     pub refresh_period: u64,
+    pub edit_session_timeout: u64,
 }
 
 /// Create and configure the web server router
@@ -127,6 +150,12 @@ pub fn create_router(state: AppState) -> Router {
         .route("/logout", post(logout_handler))
         .route("/api/devices", get(devices_handler))
         .route("/api/config", get(config_handler))
+        .route(
+            "/api/config/validate-password",
+            post(validate_password_handler),
+        )
+        .route("/api/config/update", post(update_config_handler))
+        .route("/api/restart", post(restart_handler))
         .route("/ws", get(websocket_handler))
         .layer(session_layer)
         .with_state(state)
@@ -232,7 +261,15 @@ async fn config_handler(State(state): State<AppState>, session: Session) -> Resp
         return (StatusCode::UNAUTHORIZED, "Not authenticated").into_response();
     }
 
-    let config = &state.config;
+    // Reload config from file to get latest changes
+    let config = match Configuration::from_file(&state.config_path) {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            error!("Failed to reload config from file: {}", e);
+            // Fall back to cached config if reload fails
+            state.config.clone()
+        }
+    };
 
     // Mask sensitive data
     fn mask_string(s: &str) -> String {
@@ -302,10 +339,309 @@ async fn config_handler(State(state): State<AppState>, session: Session) -> Resp
             username: mask_string(&config.web.username),
             password: mask_string("password"),
             refresh_period: config.web.refresh_period,
+            edit_session_timeout: config.web.edit_session_timeout,
         },
     };
 
     Json(response).into_response()
+}
+
+/// Validate admin password
+async fn validate_password_handler(
+    State(state): State<AppState>,
+    session: Session,
+    Json(payload): Json<ValidatePasswordRequest>,
+) -> Response {
+    // Check if user is authenticated
+    if !is_authenticated(&session).await {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse {
+                error: "Not authenticated".to_string(),
+            }),
+        )
+            .into_response();
+    }
+
+    // Validate password
+    if payload.password == state.config.web.password {
+        (
+            StatusCode::OK,
+            Json(LoginResponse {
+                success: true,
+                message: "Password validated".to_string(),
+            }),
+        )
+            .into_response()
+    } else {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse {
+                error: "Invalid password".to_string(),
+            }),
+        )
+            .into_response()
+    }
+}
+
+/// Update configuration
+async fn update_config_handler(
+    State(state): State<AppState>,
+    session: Session,
+    Json(payload): Json<ConfigUpdateRequest>,
+) -> Response {
+    // Check if user is authenticated
+    if !is_authenticated(&session).await {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse {
+                error: "Not authenticated".to_string(),
+            }),
+        )
+            .into_response();
+    }
+
+    // For password changes, validate admin password
+    let is_password_field = payload.key.contains("password")
+        || payload.key.contains("token")
+        || payload.key.contains("key");
+    if is_password_field {
+        if let Some(admin_password) = &payload.admin_password {
+            if admin_password != &state.config.web.password {
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    Json(ErrorResponse {
+                        error: "Invalid admin password".to_string(),
+                    }),
+                )
+                    .into_response();
+            }
+        } else {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    error: "Admin password required for password changes".to_string(),
+                }),
+            )
+                .into_response();
+        }
+    }
+
+    info!(
+        "Config update requested: section={}, key={}, value={}",
+        payload.section, payload.key, payload.value
+    );
+
+    // Read the current config file
+    let config_contents = match std::fs::read_to_string(&state.config_path) {
+        Ok(contents) => contents,
+        Err(e) => {
+            error!("Failed to read config file: {}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to read configuration file: {}", e),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    // Parse YAML
+    let mut yaml_value: serde_yml::Value = match serde_yml::from_str(&config_contents) {
+        Ok(value) => value,
+        Err(e) => {
+            error!("Failed to parse config file: {}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to parse configuration file: {}", e),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    // Update the specific field in YAML
+    if let Some(section) = yaml_value.as_mapping_mut() {
+        if let Some(section_value) =
+            section.get_mut(&serde_yml::Value::String(payload.section.clone()))
+        {
+            if let Some(section_map) = section_value.as_mapping_mut() {
+                // Parse the value based on the key type
+                let new_value = match parse_config_value(&payload.key, &payload.value) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        return (
+                            StatusCode::BAD_REQUEST,
+                            Json(ErrorResponse {
+                                error: format!("Invalid value: {}", e),
+                            }),
+                        )
+                            .into_response();
+                    }
+                };
+
+                section_map.insert(serde_yml::Value::String(payload.key.clone()), new_value);
+            } else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(ErrorResponse {
+                        error: format!("Section '{}' is not a mapping", payload.section),
+                    }),
+                )
+                    .into_response();
+            }
+        } else {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    error: format!("Section '{}' not found", payload.section),
+                }),
+            )
+                .into_response();
+        }
+    } else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: "Configuration file is not a valid YAML mapping".to_string(),
+            }),
+        )
+            .into_response();
+    }
+
+    // Write updated YAML back to file
+    let updated_yaml = match serde_yml::to_string(&yaml_value) {
+        Ok(yaml) => yaml,
+        Err(e) => {
+            error!("Failed to serialize config: {}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to serialize configuration: {}", e),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    if let Err(e) = std::fs::write(&state.config_path, updated_yaml) {
+        error!("Failed to write config file: {}", e);
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: format!("Failed to write configuration file: {}", e),
+            }),
+        )
+            .into_response();
+    }
+
+    // Reload configuration in memory
+    match Configuration::from_file(&state.config_path) {
+        Ok(_new_config) => {
+            // Note: The config is updated in the file, but the running service
+            // needs to be restarted for most changes to take effect (MQTT, database, etc.)
+            info!("Configuration file updated successfully. Service restart may be required for changes to take full effect.");
+
+            (
+                StatusCode::OK,
+                Json(LoginResponse {
+                    success: true,
+                    message: "Configuration updated successfully. Restart the service for changes to take full effect.".to_string(),
+                }),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            error!("Failed to reload config: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Configuration file updated but validation failed: {}. Please check the file manually.", e),
+                }),
+            )
+                .into_response()
+        }
+    }
+}
+
+/// Parse configuration value based on key type
+fn parse_config_value(key: &str, value: &str) -> Result<serde_yml::Value, String> {
+    // Remove 's' suffix for time-related fields
+    let cleaned_value = if key.ends_with("_interval")
+        || key.ends_with("_timeout")
+        || key.ends_with("_alive")
+        || key.ends_with("_period")
+    {
+        value.trim_end_matches('s')
+    } else {
+        value
+    };
+
+    // Determine type based on key name
+    match key {
+        // Integer fields
+        "port" | "pool_size" | "max_concurrent_updates" | "default_ota_port" => cleaned_value
+            .parse::<u64>()
+            .map(|v| serde_yml::Value::Number(serde_yml::Number::from(v)))
+            .map_err(|_| format!("Invalid integer value for {}", key)),
+        // Time duration fields (stored as u64)
+        "keep_alive"
+        | "check_interval"
+        | "update_timeout"
+        | "refresh_period"
+        | "edit_session_timeout" => cleaned_value
+            .parse::<u64>()
+            .map(|v| serde_yml::Value::Number(serde_yml::Number::from(v)))
+            .map_err(|_| format!("Invalid duration value for {}", key)),
+        // Boolean fields
+        "erase_firmware_after_upload" | "enabled" => match cleaned_value.to_lowercase().as_str() {
+            "true" | "yes" | "1" => Ok(serde_yml::Value::Bool(true)),
+            "false" | "no" | "0" => Ok(serde_yml::Value::Bool(false)),
+            _ => Err(format!("Invalid boolean value for {}", key)),
+        },
+        // Priority field (i8)
+        "priority" => cleaned_value
+            .parse::<i64>()
+            .map(|v| serde_yml::Value::Number(serde_yml::Number::from(v)))
+            .map_err(|_| format!("Invalid priority value")),
+        // Everything else is a string (including passwords, paths, etc.)
+        _ => {
+            if cleaned_value == "None" || cleaned_value.is_empty() {
+                Ok(serde_yml::Value::Null)
+            } else {
+                Ok(serde_yml::Value::String(cleaned_value.to_string()))
+            }
+        }
+    }
+}
+
+/// Restart the application
+async fn restart_handler(session: Session) -> Response {
+    // Check if user is authenticated
+    if !is_authenticated(&session).await {
+        return (StatusCode::UNAUTHORIZED, "Not authenticated").into_response();
+    }
+
+    info!("Service restart requested by user");
+
+    // Spawn a task to exit the process after a short delay
+    // This allows the response to be sent back to the client
+    tokio::spawn(async {
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        info!("Initiating service restart...");
+        std::process::exit(0);
+    });
+
+    (
+        StatusCode::OK,
+        Json(LoginResponse {
+            success: true,
+            message: "Service restart initiated".to_string(),
+        }),
+    )
+        .into_response()
 }
 
 /// WebSocket handler for real-time updates
@@ -381,12 +717,17 @@ async fn handle_websocket(mut socket: WebSocket, state: AppState) {
 /// Start the web server
 pub async fn start_web_server(
     config: Configuration,
+    config_path: String,
     database: Arc<Mutex<Database>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let addr = format!("0.0.0.0:{}", config.web.port);
     info!("Starting web server on {}", addr);
 
-    let state = AppState { database, config };
+    let state = AppState {
+        database,
+        config,
+        config_path,
+    };
     let app = create_router(state);
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;

@@ -103,3 +103,7 @@ web:
   # Refresh period in seconds for updating device table
   # How often the browser should request updated device data
   refresh_period: 5
+  
+  # Edit session timeout in minutes for configuration changes
+  # How long after password authentication the user can edit config without re-entering password
+  edit_session_timeout: 15

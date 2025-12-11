@@ -1,4 +1,4 @@
-# OTA Service
+# OTA Service for ESPHome devices
 
 **Over-The-Air Firmware Update Service for ESPHome Devices**
 
@@ -10,6 +10,7 @@ A robust Rust-based service that automatically manages firmware updates for ESP3
 
 ## Features
 
+✅ **Web-Based Monitoring** - Real-time device dashboard with sortable tables and configuration management  
 ✅ **ESPHome OTA Protocol v2** - Native protocol with comprehensive error handling  
 ✅ **MQTT Coordination** - Device registration and update notifications  
 ✅ **Automatic Version Management** - Detects and deploys latest firmware versions  
@@ -97,6 +98,53 @@ sudo cp ota-service.service /etc/systemd/system/
 sudo systemctl enable ota-service
 sudo systemctl start ota-service
 ```
+
+## Web Interface
+
+The OTA Service includes a comprehensive web-based monitoring and management interface for:
+
+- **Real-time device monitoring** - WebSocket-based live updates of all registered devices
+- **Firmware update history** - Track all upload attempts with success/failure status
+- **Configuration management** - View and edit service configuration through the web UI
+- **Service restart** - Restart the service directly from the interface
+
+### Access the Web Interface
+
+1. Configure the web server in `config.yaml`:
+   ```yaml
+   web:
+     port: 8080
+     username: "admin"
+     password: "change_this_password"  # Change in production!
+     refresh_period: 5
+     edit_session_timeout: 15
+   ```
+
+2. Open your browser and navigate to: `http://localhost:8080`
+
+3. Log in with your configured credentials
+
+### Key Features
+
+**Devices Tab:**
+- Live device table with auto-refresh
+- Sortable and resizable columns
+- Color-coded status indicators (Idle, OTA in Progress, Update Available)
+- WiFi signal strength (RSSI) with visual indicators
+- Firmware version with semantic sorting
+
+**Update Log Tab:**
+- Complete history of firmware uploads
+- Success/failure status with detailed error messages
+- Sortable by device, version, status, or timestamp
+
+**Config Tab:**
+- View all configuration settings
+- Edit configuration values with password protection
+- Sensitive data automatically masked (passwords, API tokens, IP addresses)
+- Changes saved to config file and require restart
+
+**See [doc/WEB_INTERFACE.md](doc/WEB_INTERFACE.md) for complete documentation.**
 
 ## How It Works
 
@@ -459,14 +507,21 @@ ota-service/
 
 ## Documentation
 
-Comprehensive documentation is available in the `doc/ota/` directory:
+Comprehensive documentation is available in the `doc/` directory:
 
+**Web Interface:**
+- **[doc/WEB_INTERFACE.md](doc/WEB_INTERFACE.md)** - Web interface features and usage guide
+
+**OTA Protocol:**
 - **[doc/ota/README.md](doc/ota/README.md)** - Documentation overview and index
 - **[doc/ota/OTA_QUICK_REFERENCE.md](doc/ota/OTA_QUICK_REFERENCE.md)** - Quick facts and troubleshooting
 - **[doc/ota/OTA_PROTOCOL.md](doc/ota/OTA_PROTOCOL.md)** - ESPHome OTA protocol v2 details
 - **[doc/ota/OTA_IMPLEMENTATION.md](doc/ota/OTA_IMPLEMENTATION.md)** - Implementation guide
 - **[doc/ota/OTA_COMPLETE_WORKFLOW.md](doc/ota/OTA_COMPLETE_WORKFLOW.md)** - End-to-end workflow
 - **[doc/ota/EXAMPLES.rs](doc/ota/EXAMPLES.rs)** - Code examples
+
+**Notifications:**
+- **[doc/PUSHOVER.md](doc/PUSHOVER.md)** - Pushover notification setup
 
 ## Troubleshooting
 
@@ -546,12 +601,13 @@ Contributions are welcome! Please:
 
 ## License
 
-[Add your license here]
+This is free software released under a dual license. You may use either the MIT license or the GNU General Public License v3 (GPLv3) at your convenience. See the LICENSE.md files in the main folder.
 
 ## Acknowledgments
 
 - ESPHome project for the OTA protocol specification
 - Pushover for notification service
+- Claude Sonnet V4.5 in support of this development
 
 ## Support
 
@@ -563,3 +619,7 @@ For issues and questions:
 ---
 
 **Made with ❤️ for the ESPHome community**
+
+If you find this project helpful, consider buying me a coffee! ☕
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://paypal.me/turgu1)
