@@ -39,7 +39,7 @@ firmware:
   # Directory where firmware binary files are stored
   # Must be absolute path
   # Firmware files should be named: {device_id} - {version}.bin
-  # Example: esp32-001 - 1.0.0.bin
+  # Example: device-001 - 1.0.0.bin
   storage_path: "/var/lib/ota-service/firmware"
   
   # Maximum number of concurrent OTA updates

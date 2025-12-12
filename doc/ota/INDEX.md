@@ -558,12 +558,13 @@ Receive: `[0x00]` (OK)
 |------|------|-------------|
 | `0x00` | `OK` | Success |
 | `0x80` | `ERROR_MAGIC` | Invalid magic bytes |
-| `0x81` | `ERROR_INVALID_HASH` | MD5/SHA256 validation failed |
-| `0x82` | `ERROR_UPDATE_PREPARE` | Cannot prepare for update |
-| `0x83` | `ERROR_AUTH_INVALID` | Authentication failed |
-| `0x84` | `ERROR_WRITING_FLASH` | Flash write error |
-| `0x85` | `ERROR_UPDATE_END` | Cannot finalize update |
-| `0x86` | `ERROR_UNKNOWN` | Unknown error |
+| `0x81` | `ERROR_UPDATE_PREPARE` | Update preparation failed |
+| `0x82` | `ERROR_AUTH_INVALID` | Authentication failed |
+| `0x83` | `ERROR_WRITING_FLASH` | Flash write error |
+| `0x84` | `ERROR_UPDATE_END` | Update end failed |
+| `0xFF` | `ERROR_UNKNOWN` | Unknown error |
+
+**Note**: Additional error codes (0x85-0x8C) are defined in the ESPHome protocol specification for device-specific errors (wrong flash config, not enough space, etc.) but may not be encountered during normal operation.
 
 **See**: [OTA_PROTOCOL.md](OTA_PROTOCOL.md) for complete list
 

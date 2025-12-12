@@ -213,7 +213,7 @@ firmware:
   storage_path: "/var/lib/ota-service/firmware"
   max_concurrent_updates: 10
   update_timeout: 3600        # seconds to wait for device to complete update
-  check_interval: 60          # seconds between availability checks
+  check_interval: 300         # seconds between availability checks (5 minutes)
   ota_password: "your_hex_password"  # Optional OTA authentication
   default_ota_port: 3232      # Default OTA port (devices can override)
   erase_firmware_after_upload: false  # Delete firmware file after successful upload

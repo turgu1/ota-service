@@ -262,7 +262,7 @@ firmware:
   storage_path: "/var/lib/ota-service/firmware"
   max_concurrent_updates: 10
   update_timeout: 3600
-  check_interval: 60
+  check_interval: 300  # 5 minutes
   ota_password: "deadbeef1234"  # Hex string for OTA authentication
 
 pushover:                        # Optional

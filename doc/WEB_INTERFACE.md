@@ -78,12 +78,12 @@ View and edit service configuration with:
 - **Restart notification** - Clear indication when restart needed for changes
 
 **Configuration Sections:**
-- **MQTT** - Broker connection settings
-- **Database** - SQLite database configuration
-- **Service** - Logging and service settings
-- **Firmware** - Update behavior and storage
-- **Pushover** - Notification settings (optional)
-- **Web** - Web interface configuration
+- **MQTT** - Broker connection settings (host, port, client_id, username, password, keep_alive, registration_topic)
+- **Database** - SQLite database configuration (path, pool_size)
+- **Service** - Logging and service settings (name, log_level, log_file_path)
+- **Firmware** - Update behavior and storage (storage_path, max_concurrent_updates, check_interval, update_timeout, ota_password, default_ota_port, erase_firmware_after_upload)
+- **Pushover** - Notification settings if configured (enabled, api_token, user_key, device, priority)
+- **Web** - Web interface configuration (port, username, password, refresh_period, edit_session_timeout)
 
 **Edit Modal Features:**
 - Two-step authentication for password fields
