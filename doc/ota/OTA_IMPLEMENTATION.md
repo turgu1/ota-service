@@ -2,7 +2,7 @@
 
 ## Overview
 
-You now have a complete implementation for uploading ESP32 firmware using the **ESPHome native OTA protocol version 2** on a **configurable port** (default **3232**) with comprehensive error handling, authentication, and optional Pushover notifications.
+You now have a complete implementation for uploading firmware using the **ESPHome native OTA protocol version 2** on a **configurable port** (default **3232**) with comprehensive error handling, authentication, and optional Pushover notifications.
 
 ## What Was Added
 
@@ -131,7 +131,7 @@ reqwest = { version = "0.11", features = ["json"] }  # For Pushover API
 ### Upload Flow
 
 ```
-Your Service                          ESP32 Device (ESPHome)
+Your Service                               Device (ESPHome)
      |                                          |
      |--- TCP Connect :3232 ------------------->|
      |                                          |
@@ -215,7 +215,7 @@ client.upload_firmware(&firmware, password).await?;
 // High-level API - handles everything including Pushover notifications
 ota_service
     .upload_firmware_ota(
-        "esp32-001",           // device_id
+        "device-001",           // device_id
         "192.168.1.100",       // device_ip
         "1.2.3",               // firmware_version
     )
@@ -291,7 +291,7 @@ pushover:                        # Optional
 
 **Errors (0x80-0x8C, 0xFF):**
 - ErrorMagic, ErrorUpdatePrepare, ErrorAuthInvalid, ErrorWritingFlash, ErrorUpdateEnd
-- ErrorEsp32NotEnoughSpace, ErrorMd5Mismatch, and more...
+- ErrorEsp32NotEnoughSpace, ErrorEsp8266NotEnoughSpace, ErrorMd5Mismatch, and more...
 
 ### Constants
 - **Protocol Version**: 2
@@ -303,7 +303,7 @@ pushover:                        # Optional
 
 ## Device Requirements
 
-Your ESP32 must be running ESPHome firmware with OTA enabled:
+Your device must be running ESPHome firmware with OTA enabled:
 
 ```yaml
 ota:
@@ -328,10 +328,10 @@ nc -zv 192.168.1.100 3232
 ### 3. Test with Your Service
 ```bash
 # Place firmware in correct location:
-/var/lib/ota-service/firmware/esp32-001 - 1.2.3.bin
+/var/lib/ota-service/firmware/device-001 - 1.2.3.bin
 
 # Upload via service:
-ota_service.upload_firmware_ota("esp32-001", "192.168.1.100", "", None).await
+ota_service.upload_firmware_ota("device-001", "192.168.1.100", "", None).await
 ```
 
 ### 4. Monitor Results
@@ -433,4 +433,4 @@ You now have a **production-ready ESPHome OTA implementation** that:
 - ✅ Supports both authenticated and unauthenticated devices
 - ✅ Is fully documented with examples
 
-You're ready to start uploading firmware to ESP32 devices! 🚀
+You're ready to start uploading firmware to devices! 🚀

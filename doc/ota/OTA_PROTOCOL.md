@@ -2,7 +2,7 @@
 
 ## Overview
 
-This module implements the ESPHome native OTA (Over-The-Air) protocol version 2 for uploading firmware to ESP32 devices running ESPHome firmware. The protocol typically communicates over TCP port 3232 (configurable per-device).
+This module implements the ESPHome native OTA (Over-The-Air) protocol version 2 for uploading firmware to devices running ESPHome firmware. The protocol typically communicates over TCP port 3232 (configurable per-device).
 
 ## Protocol Version
 
@@ -96,7 +96,7 @@ The `OtaService` provides a high-level API that integrates with your device data
 // Upload firmware to a specific device
 ota_service
     .upload_firmware_ota(
-        "esp32-001",           // device_id
+        "device-001",           // device_id
         "192.168.1.100",       // device_ip
         "1.2.3",               // firmware_version
         None,                  // auth_password
@@ -238,7 +238,7 @@ let client = OtaClient::new(device_ip, 3232)
 1. **Chunk size**: 1024 bytes with acknowledgments every 8192 bytes (8 chunks)
 2. **Timeouts**: 30-second default on all network operations, configurable via `with_timeout()`
 3. **Concurrency**: Limited by `max_concurrent_updates` in config
-4. **Firmware size**: Typical ESP32 firmware 500KB-2MB
+4. **Firmware size**: Typical firmware 500KB-2MB
 5. **Network**: Big-endian size transmission, timeout protection on all reads
 
 ## Security Notes

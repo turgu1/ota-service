@@ -33,13 +33,13 @@ Each phase has specific responsibilities and state transitions.
    ```
    Topic: home/ota/registration
    Payload: {
-     "device_id": "esp32-001",
+     "device_id": "device-001",
      "ip_address": "192.168.1.100",
      "mac_address": "AA:BB:CC:DD:EE:FF",
      "firmware_version": "1.0.0",
      "ota_port": 3232,
-     "ota_readiness_topic": "home/esp32-001/ota/ready",
-     "ota_mode_topic": "home/esp32-001/ota/mode",
+     "ota_readiness_topic": "home/device-001/ota/ready",
+     "ota_mode_topic": "home/device-001/ota/mode",
      "rssi": -65
    }
    ```
@@ -74,9 +74,9 @@ Each phase has specific responsibilities and state transitions.
 1. **Service scans firmware directory**
    ```
    /var/lib/ota-service/firmware/
-   ├── esp32-001-1.0.0.bin
-   ├── esp32-001-1.1.0.bin  ← Newer version available!
-   └── esp32-002-2.0.0.bin
+   ├── device-001-1.0.0.bin
+   ├── device-001-1.1.0.bin  ← Newer version available!
+   └── device-002-2.0.0.bin
    ```
 
 2. **Version comparison**
@@ -89,12 +89,12 @@ Each phase has specific responsibilities and state transitions.
    ```sql
    UPDATE devices 
    SET device_state = 'NewVersionAvailableTransmitted'
-   WHERE device_id = 'esp32-001'
+   WHERE device_id = 'device-001'
    ```
 
 4. **MQTT notification sent**
    ```
-   Topic: home/esp32-001/ota/mode
+   Topic: home/device-001/ota/mode
    Payload: "ON"
    QoS: 1 (At Least Once)
    Retain: true
@@ -115,7 +115,7 @@ Each phase has specific responsibilities and state transitions.
 
 2. **Device publishes ready signal**
    ```
-   Topic: home/esp32-001/ota/ready
+   Topic: home/device-001/ota/ready
    Payload: "OTA-READY"
    QoS: 1
    Retain: true
@@ -134,7 +134,7 @@ Each phase has specific responsibilities and state transitions.
 5. **Clear retained messages**
    ```
    # Clear ota_mode_topic (the notification)
-   Topic: home/esp32-001/ota/mode
+   Topic: home/device-001/ota/mode
    Payload: (empty)
    Retain: true
    ```
@@ -237,7 +237,7 @@ Device Response: 0x00 (OK)
 
 **Progress Logging**
 ```
-INFO: Starting OTA for esp32-001: 1.0.0 -> 1.1.0
+INFO: Starting OTA for device-001: 1.0.0 -> 1.1.0
 DEBUG: Sent chunk 1/977 (0.1%)
 DEBUG: Sent chunk 100/977 (10.2%)
 DEBUG: Sent chunk 200/977 (20.5%)
@@ -286,22 +286,22 @@ Command: 0x81 (ERROR_INVALID_HASH) - MD5 mismatch
    SET firmware_version = '1.1.0',
        device_state = 'Idle',
        last_seen = datetime('now')
-   WHERE device_id = 'esp32-001'
+   WHERE device_id = 'device-001'
    ```
 
 2. **Service logs success**
    ```
-   INFO: OTA successful for esp32-001
+   INFO: OTA successful for device-001
    ```
 
 3. **Optional: Delete firmware files**
    - If `erase_firmware_after_upload` is enabled
    - Removes the uploaded firmware file and all older versions for the device
-   - Example: Deletes `esp32-001 - 1.1.0.bin`, `esp32-001 - 1.0.0.bin`, etc.
+   - Example: Deletes `device-001 - 1.1.0.bin`, `device-001 - 1.0.0.bin`, etc.
 
 4. **Clear retained ready message**
    ```
-   Topic: home/esp32-001/ota/ready
+   Topic: home/device-001/ota/ready
    Payload: (empty)
    Retain: true
    ```
@@ -373,7 +373,7 @@ ERROR: Failed to connect OTA client: Connection refused (os error 111)
 **Problem**: Password mismatch
 
 ```
-ERROR: OTA failed for esp32-001: Authentication failed
+ERROR: OTA failed for device-001: Authentication failed
 ```
 
 **Possible Causes**:
@@ -391,7 +391,7 @@ ERROR: OTA failed for esp32-001: Authentication failed
 **Problem**: Network interruption during transfer
 
 ```
-ERROR: OTA failed for esp32-001: Broken pipe (os error 32)
+ERROR: OTA failed for device-001: Broken pipe (os error 32)
 ```
 
 **Possible Causes**:
@@ -409,7 +409,7 @@ ERROR: OTA failed for esp32-001: Broken pipe (os error 32)
 **Problem**: MD5 hash mismatch
 
 ```
-ERROR: OTA failed for esp32-001: MD5 validation failed
+ERROR: OTA failed for device-001: MD5 validation failed
 ```
 
 **Possible Causes**:
@@ -463,11 +463,11 @@ T+0:22  - Service confirms update successful
 
 **Always use semantic versioning**:
 ```
-✓ esp32-001 - 1.0.0.bin
-✓ esp32-001 - 1.1.0.bin
-✓ esp32-001 - 2.0.0.bin
-✗ esp32-001-latest.bin
-✗ esp32-001.bin
+✓ device-001 - 1.0.0.bin
+✓ device-001 - 1.1.0.bin
+✓ device-001 - 2.0.0.bin
+✗ device-001-latest.bin
+✗ device-001.bin
 ```
 
 ### 2. Testing Updates
@@ -475,13 +475,13 @@ T+0:22  - Service confirms update successful
 **Test on a single device first**:
 ```bash
 # Deploy to test device only
-cp new-firmware.bin "/var/lib/ota-service/firmware/esp32-test - 2.0.0.bin"
+cp new-firmware.bin "/var/lib/ota-service/firmware/device-test - 2.0.0.bin"
 
 # Monitor logs
 journalctl -u ota-service -f
 
 # After success, deploy to production
-cp new-firmware.bin /var/lib/ota-service/firmware/esp32-prod-2.0.0.bin
+cp new-firmware.bin /var/lib/ota-service/firmware/device-prod-2.0.0.bin
 ```
 
 ### 3. Staged Rollouts
@@ -489,11 +489,11 @@ cp new-firmware.bin /var/lib/ota-service/firmware/esp32-prod-2.0.0.bin
 **Update devices in groups**:
 ```bash
 # Week 1: Test devices
-cp firmware.bin /var/lib/ota-service/firmware/esp32-test-*-2.0.0.bin
+cp firmware.bin /var/lib/ota-service/firmware/device-test-*-2.0.0.bin
 
 # Week 2: 10% of production
-cp firmware.bin /var/lib/ota-service/firmware/esp32-prod-001-2.0.0.bin
-cp firmware.bin /var/lib/ota-service/firmware/esp32-prod-002-2.0.0.bin
+cp firmware.bin /var/lib/ota-service/firmware/device-prod-001-2.0.0.bin
+cp firmware.bin /var/lib/ota-service/firmware/device-prod-002-2.0.0.bin
 
 # Week 3: 50% of production
 # ...
@@ -522,8 +522,8 @@ firmware:
   erase_firmware_after_upload: false
 
 # This allows easy rollback:
-cp /var/lib/ota-service/firmware/esp32-001-1.9.0.bin \
-   /var/lib/ota-service/firmware/esp32-001-2.0.1.bin  # Higher version
+cp /var/lib/ota-service/firmware/device-001-1.9.0.bin \
+   /var/lib/ota-service/firmware/device-001-2.0.1.bin  # Higher version
 ```
 
 ## Troubleshooting Workflows
@@ -535,12 +535,12 @@ cp /var/lib/ota-service/firmware/esp32-001-1.9.0.bin \
 1. **Check device is registered**
    ```bash
    sqlite3 /var/lib/ota-service/ota.db \
-     "SELECT * FROM devices WHERE device_id = 'esp32-001';"
+     "SELECT * FROM devices WHERE device_id = 'device-001';"
    ```
 
 2. **Check firmware file exists**
    ```bash
-   ls -la /var/lib/ota-service/firmware/esp32-001-*.bin
+   ls -la /var/lib/ota-service/firmware/device-001-*.bin
    ```
 
 3. **Check version comparison**
@@ -552,7 +552,7 @@ cp /var/lib/ota-service/firmware/esp32-001-1.9.0.bin \
 
 4. **Check MQTT messages**
    ```bash
-   mosquitto_sub -h localhost -t "home/esp32-001/ota/#" -v
+   mosquitto_sub -h localhost -t "home/device-001/ota/#" -v
    ```
 
 5. **Check device connectivity**
@@ -576,13 +576,13 @@ cp /var/lib/ota-service/firmware/esp32-001-1.9.0.bin \
    ```sql
    UPDATE devices 
    SET device_state = 'Idle' 
-   WHERE device_id = 'esp32-001';
+   WHERE device_id = 'device-001';
    ```
 
 3. **Clear retained messages**
    ```bash
-   mosquitto_pub -h localhost -t "home/esp32-001/ota/mode" -r -n
-   mosquitto_pub -h localhost -t "home/esp32-001/ota/ready" -r -n
+   mosquitto_pub -h localhost -t "home/device-001/ota/mode" -r -n
+   mosquitto_pub -h localhost -t "home/device-001/ota/ready" -r -n
    ```
 
 4. **Trigger re-check**

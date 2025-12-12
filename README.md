@@ -2,11 +2,13 @@
 
 **Over-The-Air Firmware Update Service for ESPHome Devices**
 
-*Last updated: December 10, 2025*
+*Last updated: December 12, 2025*
 
-A robust Rust-based service that automatically manages firmware updates for ESP32 devices running ESPHome firmware. The service monitors for new firmware versions, coordinates updates via MQTT, and uploads firmware using the ESPHome native OTA protocol v2.
+A robust Rust-based service that automatically manages firmware updates for devices running ESPHome firmware. The service monitors for new firmware versions, coordinates updates via MQTT, and uploads firmware using the ESPHome native OTA protocol v2.
 
 > **Platform Note:** This application is built and tested for Linux platforms. It may also work on other operating systems, but Linux is the primary target environment.
+
+> **Device Note:** All testing has been done with ESP32 devices. Please advise if the other kind of devices supported by ESPHome OTA capability are not working properly.
 
 ## Features
 
@@ -28,7 +30,7 @@ A robust Rust-based service that automatically manages firmware updates for ESP3
 
 - Rust 1.70+ (2024 edition)
 - MQTT broker (e.g., Mosquitto, Home Assistant)
-- ESP32 devices running ESPHome firmware with OTA enabled
+- Devices running ESPHome firmware with OTA enabled
 - Optional: Pushover account for push notifications
 
 ### Installation
@@ -154,11 +156,11 @@ Devices register themselves via MQTT by publishing to the registration topic:
 
 ```json
 {
-  "device_id": "esp32-001",
+  "device_id": "device-001",
   "ip_address": "192.168.1.100",
   "firmware_version": "1.0.0",
-  "ota_readiness_topic": "devices/esp32-001/ready",
-  "ota_mode_topic": "devices/esp32-001/ota-mode",
+  "ota_readiness_topic": "devices/device-001/ready",
+  "ota_mode_topic": "devices/device-001/ota-mode",
   "uses_deep_sleep": false,
   "ota_port": 3232  // Optional: custom OTA port (uses default if omitted)
 }
@@ -211,9 +213,9 @@ Place firmware files in the configured storage directory using this naming conve
 
 Examples:
 ```
-esp32-kitchen - 1.2.3.bin
-esp32-bedroom - 2.0.1.bin
-esp32-garage - 1.5.0.bin
+device-kitchen - 1.2.3.bin
+device-bedroom - 2.0.1.bin
+device-garage - 1.5.0.bin
 ```
 
 The service automatically selects the **highest version number** for each device.
@@ -235,7 +237,7 @@ The `deploy-firmware.sh` script simplifies firmware deployment by automating the
 cd /path/to/esphome-configs
 
 # Run the deployment script with the device YAML file
-/path/to/ota-service/deploy-firmware.sh esp32-kitchen.yaml
+/path/to/ota-service/deploy-firmware.sh device-kitchen.yaml
 ```
 
 ### What the Script Does
@@ -261,25 +263,26 @@ OTA_CONFIG_FILE="/etc/ota-service/config.yaml"
 ```
 INFO: Using OTA service config: /etc/ota-service/config.yaml
 INFO: Firmware storage path: /var/lib/ota-service/firmware
-INFO: Device name: esp32-kitchen
+INFO: Device name: device-kitchen
 INFO: Firmware version: 1.2.3
 INFO: Starting ESPHome firmware compilation...
 SUCCESS: Firmware compiled successfully
-INFO: Source file: /path/to/.esphome/build/esp32-kitchen/.pioenvs/esp32-kitchen/firmware.bin
-INFO: Destination: /var/lib/ota-service/firmware/esp32-kitchen - 1.2.3.bin
+INFO: Source file: /path/to/.esphome/build/device-kitchen/.pioenvs/device-kitchen/firmware.bin
+INFO: Destination: /var/lib/ota-service/firmware/device-kitchen - 1.2.3.bin
 SUCCESS: Firmware deployed successfully!
 ```
 
 ### Notes
 
 - The script must be run from the directory containing your ESPHome YAML file
-- Device name is extracted from the `name:` field in the YAML
-- Version is extracted from the `project.version:` field in the YAML
+- Device name is extracted from the `name:` substitution field in the YAML
+- Device id is extracted from the 'device_id:' substitution field in the YAML
+- Version is extracted from the `firmware_version:` substitution field in the YAML
 - The script will not overwrite existing firmware files with the same version
 
 ## ESPHome Device Configuration
 
-Your ESP32 devices must be running ESPHome with OTA enabled and proper MQTT integration. The MQTT configuration is **required** for the OTA service to communicate with devices.
+Your devices must be running ESPHome with OTA enabled and proper MQTT integration. The MQTT configuration is **required** for the OTA service to communicate with devices.
 
 ### Required MQTT Topics
 
@@ -294,7 +297,7 @@ The OTA service uses MQTT for coordination with devices:
 ```yaml
 # ESPHome configuration with OTA service integration
 substitutions:
-  device_id: esp32-kitchen
+  device_id: device-kitchen
   firmware_version: "1.0.0"  # Update this when deploying new firmware
   ota_password: "d96112143a8c04d8b2945b226a9b95e7"  # Must match OTA service config
 
@@ -386,12 +389,12 @@ script:
 ```json
 Topic: ota-service/registration
 Payload: {
-  "device_id": "esp32-kitchen",
+  "device_id": "device-kitchen",
   "ip_address": "192.168.1.100",
   "mac_address": "AA:BB:CC:DD:EE:FF",
   "firmware_version": "1.0.0",
-  "ota_readiness_topic": "devices/esp32-kitchen/ready",
-  "ota_mode_topic": "devices/esp32-kitchen/ota-mode",
+  "ota_readiness_topic": "devices/device-kitchen/ready",
+  "ota_mode_topic": "devices/device-kitchen/ota-mode",
   "uses_deep_sleep": false,
   "ota_port": 3232,
   "rssi": -45
@@ -400,13 +403,13 @@ Payload: {
 
 **2. Update Notification (Service → Device)**
 ```
-Topic: devices/esp32-kitchen/ota-mode
+Topic: devices/device-kitchen/ota-mode
 Payload: NEW-FIRMWARE-VERSION
 ```
 
 **3. Readiness Confirmation (Device → Service)**
 ```
-Topic: devices/esp32-kitchen/ready
+Topic: devices/device-kitchen/ready
 Payload: OTA-READY
 ```
 
@@ -446,7 +449,7 @@ For deep-sleep devices, see [esphome-examples/esp32-deep-sleep.yaml](esphome-exa
 **Errors (0x80-0x8C, 0xFF):**
 - `0x82` ErrorAuthInvalid (password mismatch)
 - `0x8B` ErrorMd5Mismatch (checksum verification failed)
-- `0x89` ErrorEsp32NotEnoughSpace (firmware too large)
+- `0x89` ErrorNotEnoughSpace (firmware too large)
 - See [doc/ota/OTA_PROTOCOL.md](doc/ota/OTA_PROTOCOL.md) for complete list
 
 ## Pushover Notifications

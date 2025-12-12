@@ -1414,6 +1414,8 @@
                 html += `<tr><td class="config-key">Enabled:</td><td>${editableField('pushover', 'enabled', config.pushover.enabled)}</td></tr>`;
                 html += `<tr><td class="config-key">API Token:</td><td>${editableField('pushover', 'api_token', config.pushover.api_token, true)}</td></tr>`;
                 html += `<tr><td class="config-key">User Key:</td><td>${editableField('pushover', 'user_key', config.pushover.user_key, true)}</td></tr>`;
+                html += `<tr><td class="config-key">Device:</td><td>${editableField('pushover', 'device', config.pushover.device || 'All devices')}</td></tr>`;
+                html += `<tr><td class="config-key">Priority:</td><td>${editableField('pushover', 'priority', config.pushover.priority)}</td></tr>`;
                 html += '</table>';
                 html += '</div>';
             }
@@ -1426,6 +1428,7 @@
             html += `<tr><td class="config-key">Username:</td><td>${editableField('web', 'username', config.web.username)}</td></tr>`;
             html += `<tr><td class="config-key">Password:</td><td>${editableField('web', 'password', config.web.password, true)}</td></tr>`;
             html += `<tr><td class="config-key">Refresh Period:</td><td>${editableField('web', 'refresh_period', config.web.refresh_period + 's')}</td></tr>`;
+            html += `<tr><td class="config-key">Edit Session Timeout:</td><td>${editableField('web', 'edit_session_timeout', config.web.edit_session_timeout + ' min')}</td></tr>`;
             html += '</table>';
             html += '</div>';
 
@@ -1437,6 +1440,57 @@
         let currentEditSection = null;
         let currentEditKey = null;
         let currentEditIsPassword = false;
+
+        function getFieldHint(section, key) {
+            const hints = {
+                mqtt: {
+                    host: 'Hostname or IP address of your MQTT broker (e.g., mqtt.local or 192.168.1.100)',
+                    port: 'MQTT broker port number (default: 1883 for unencrypted, 8883 for SSL/TLS)',
+                    client_id: 'Unique identifier for this OTA service client connecting to MQTT broker',
+                    username: 'Username for MQTT authentication (leave as "null" if broker doesn\'t require auth)',
+                    password: 'Password for MQTT authentication (leave as "null" if broker doesn\'t require auth)',
+                    keep_alive: 'Keep-alive interval in seconds (recommended: 60). Append "s" for seconds',
+                    registration_topic: 'MQTT topic where devices publish registration messages (default: ota-service/registration)'
+                },
+                database: {
+                    path: 'Full path to SQLite database file (e.g., /var/lib/ota-service/devices.db)',
+                    pool_size: 'Number of database connections in pool (default: 5)'
+                },
+                service: {
+                    name: 'Service name identifier for logging and identification',
+                    log_level: 'Logging verbosity: trace, debug, info, warn, or error',
+                    log_file_path: 'Full path to log file, or "null" for console-only logging'
+                },
+                firmware: {
+                    storage_path: 'Directory containing firmware binaries (format: device_id - version.bin)',
+                    max_concurrent_updates: 'Maximum number of simultaneous OTA updates (default: 10)',
+                    check_interval: 'Seconds between firmware availability checks (e.g., 300 for 5 minutes). Append "s"',
+                    update_timeout: 'Maximum seconds for OTA update to complete (default: 3600 = 1 hour). Append "s"',
+                    ota_password: 'Hex password for OTA authentication (must match device config), or "null" for no auth',
+                    default_ota_port: 'Default OTA port for device connections (ESPHome default: 3232)',
+                    erase_firmware_after_upload: 'true to delete firmware after successful upload, false to keep files'
+                },
+                pushover: {
+                    enabled: 'true to enable Pushover notifications, false to disable',
+                    api_token: 'Your Pushover application API token from https://pushover.net/apps',
+                    user_key: 'Your Pushover user key from https://pushover.net/',
+                    device: 'Send to specific device name (e.g., "iphone"), or leave as "null" for all devices',
+                    priority: 'Notification priority: -2 (silent), -1 (quiet), 0 (normal), 1 (high), 2 (emergency)'
+                },
+                web: {
+                    port: 'Web interface port number (default: 8080)',
+                    username: 'Username for web interface login',
+                    password: 'Password for web interface login (change from default for security!)',
+                    refresh_period: 'Seconds between automatic device table updates (default: 5). Append "s"',
+                    edit_session_timeout: 'Minutes before re-authentication required for config edits (default: 15)'
+                }
+            };
+
+            if (hints[section] && hints[section][key]) {
+                return hints[section][key];
+            }
+            return 'Enter new value for this configuration parameter';
+        }
 
         function openEditModal(section, key, isPassword) {
             currentEditSection = section;
@@ -1491,14 +1545,26 @@
 
             // Get current value
             let currentValue = currentConfig[currentEditSection][currentEditKey];
-            if (typeof currentValue === 'string' && currentValue.endsWith('s') &&
-                ['keep_alive', 'check_interval', 'update_timeout', 'refresh_period'].includes(currentEditKey)) {
-                currentValue = currentValue.slice(0, -1); // Remove 's' suffix
+            if (typeof currentValue === 'string') {
+                if (currentValue.endsWith('s') && ['keep_alive', 'check_interval', 'update_timeout', 'refresh_period'].includes(currentEditKey)) {
+                    currentValue = currentValue.slice(0, -1); // Remove 's' suffix
+                } else if (currentValue.endsWith(' min') && currentEditKey === 'edit_session_timeout') {
+                    currentValue = currentValue.slice(0, -4); // Remove ' min' suffix
+                }
             }
 
             editLabel.textContent = `New Value:`;
             editValue.value = currentEditIsPassword ? '' : currentValue;
             editValue.type = currentEditIsPassword ? 'password' : 'text';
+
+            // Add or update hint text
+            let existingHint = editSection.querySelector('.modal-hint.field-hint');
+            if (!existingHint) {
+                existingHint = document.createElement('p');
+                existingHint.className = 'modal-hint field-hint';
+                editValue.parentNode.insertBefore(existingHint, currentPasswordSection);
+            }
+            existingHint.textContent = getFieldHint(currentEditSection, currentEditKey);
 
             // Show additional password field for password changes
             currentPasswordSection.style.display = currentEditIsPassword ? 'block' : 'none';

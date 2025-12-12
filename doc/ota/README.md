@@ -19,7 +19,7 @@ Welcome! This folder contains comprehensive documentation for the ESPHome OTA (O
 
 ## 🎯 What is OTA?
 
-Over-The-Air (OTA) is a method to wirelessly update firmware on ESP32 devices without physical connection. The ESPHome OTA protocol communicates via:
+Over-The-Air (OTA) is a method to wirelessly update firmware on devices without physical connection. The ESPHome OTA protocol communicates via:
 - **Port**: 3232 (TCP)
 - **Protocol Version**: 2
 - **Magic bytes**: `[0x6C, 0x26, 0xF7, 0x5C, 0x45]` (5 bytes)
@@ -31,7 +31,7 @@ Over-The-Air (OTA) is a method to wirelessly update firmware on ESP32 devices wi
 // Upload firmware to a device
 ota_service
     .upload_firmware_ota(
-        "esp32-001",           // device_id
+        "device-001",           // device_id
         "192.168.1.100",       // device_ip
         "1.2.3",               // firmware_version
         None,                  // auth_password
@@ -130,7 +130,7 @@ firmware:
   update_timeout: 3600
   check_interval: 60
   default_ota_port: 3232  # Default OTA port (devices can override)
-  ota_password: "your_hex_password"  # Optional OTA authentication
+  ota_password: "your_OTA_password"  # Optional OTA authentication
   erase_firmware_after_upload: false  # Delete firmware after successful upload
 
 pushover:  # Optional push notifications
@@ -157,7 +157,7 @@ pushover:  # Optional push notifications
 
 3. **Place Test Firmware**
    ```bash
-   cp firmware.bin "/var/lib/ota-service/firmware/esp32-001 - 1.2.3.bin"
+   cp firmware.bin "/var/lib/ota-service/firmware/device-001 - 1.2.3.bin"
    ```
 
 4. **Check Logs**

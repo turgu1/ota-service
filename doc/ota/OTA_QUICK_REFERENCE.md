@@ -2,7 +2,7 @@
 
 ## What is ESPHome OTA?
 
-ESPHome OTA is the native over-the-air update protocol used by ESPHome devices. It allows you to upload new firmware to ESP32 devices wirelessly without physical connection.
+ESPHome OTA is the native over-the-air update protocol used by ESPHome devices. It allows you to upload new firmware to devices wirelessly without physical connection.
 
 ## Key Facts
 
@@ -35,7 +35,7 @@ ESPHome OTA is the native over-the-air update protocol used by ESPHome devices. 
 // Upload firmware to a device
 ota_service
     .upload_firmware_ota(
-        "esp32-001",           // device_id
+        "device-001",           // device_id
         "192.168.1.100",       // device IP
         "1.2.3",               // firmware version
         None,                  // no password
@@ -48,7 +48,7 @@ ota_service
 ```rust
 ota_service
     .upload_firmware_ota(
-        "esp32-001",
+        "device-001",
         "192.168.1.100",
         "1.2.3",
         Some("your_hex_password"),  // Password as hexadecimal string
@@ -154,11 +154,11 @@ wifi:
 2. Service receives registration message
 3. Service stores device in database with version "1.0.0"
 4. At next check interval, scans firmware directory
-5. Finds "esp32-001 - 2.0.0.bin" available
+5. Finds "device-001 - 2.0.0.bin" available
 6. Compares: 2.0.0 > 1.0.0 ✓
 7. Sends "NEW-FIRMWARE-VERSION" to device's readiness topic
 8. Device responds with "OTA-READY"
-9. Service uploads "esp32-001 - 2.0.0.bin" via OTA
+9. Service uploads "device-001 - 2.0.0.bin" via OTA
 10. Device installs and restarts
 11. Device re-registers with new version "2.0.0"
 ```
@@ -167,10 +167,10 @@ wifi:
 
 ```
 Firmware files in storage:
-├── esp32-001 - 1.0.0.bin
-├── esp32-001 - 1.5.0.bin
-├── esp32-001 - 2.0.0.bin    ← SELECTED (largest)
-└── esp32-001 - 2.0.1.bin    ← SELECTED (largest)
+├── device-001 - 1.0.0.bin
+├── device-001 - 1.5.0.bin
+├── device-001 - 2.0.0.bin    ← SELECTED (largest)
+└── device-001 - 2.0.1.bin    ← SELECTED (largest)
 
 Device current version: 1.5.0
 
@@ -258,7 +258,7 @@ If device got wrong version:
 **Common Errors:**
 - `0x82` - Authentication failed (password mismatch)
 - `0x8B` - MD5 checksum mismatch
-- `0x89` - ESP32 not enough space (firmware too large)
+- `0x89` - Not enough space (firmware too large)
 - `0x83` - Flash write error (device storage issue)
 
 See OTA_PROTOCOL.md for complete list of 13 error codes.
@@ -303,7 +303,7 @@ nc -zv 192.168.1.100 3232
 Place test firmware in firmware storage directory:
 ```bash
 mkdir -p /var/lib/ota-service/firmware
-cp my_firmware.bin "/var/lib/ota-service/firmware/esp32-001 - 1.2.3.bin"
+cp my_firmware.bin "/var/lib/ota-service/firmware/device-001 - 1.2.3.bin"
 ```
 
 ### 4. Check Logs

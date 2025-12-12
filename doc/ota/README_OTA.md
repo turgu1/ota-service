@@ -2,7 +2,7 @@
 
 ## Quick Answer to Your Question
 
-**How to upload ESP32 firmware using the ESPHome native OTA protocol?**
+**How to upload firmware using the ESPHome native OTA protocol?**
 
 ```rust
 // Simple usage:
@@ -84,7 +84,7 @@ You now have a fully functional ESP32 OTA firmware upload system:
 
 ### The ESPHome OTA Protocol
 
-ESP32 devices running ESPHome firmware listen on **TCP port** (default **3232**, configurable) for OTA updates using a binary protocol:
+Devices running ESPHome firmware listen on **TCP port** (default **3232**, configurable) for OTA updates using a binary protocol:
 
 ```
 [5-byte size header]
@@ -176,7 +176,7 @@ async fn upload_with_password() -> Result<(), String> {
 // High-level API - integrates with your service architecture
 ota_service
     .upload_firmware_ota(
-        "esp32-001",           // device_id
+        "device-001",           // device_id
         "192.168.1.100",       // device_ip  
         "1.2.3",               // firmware_version
         None,                  // auth_password (optional)
@@ -189,9 +189,9 @@ ota_service
 ```rust
 // Upload to multiple devices concurrently
 let devices = vec![
-    ("esp32-001", "192.168.1.100"),
-    ("esp32-002", "192.168.1.101"),
-    ("esp32-003", "192.168.1.102"),
+    ("device-001", "192.168.1.100"),
+    ("device-002", "192.168.1.101"),
+    ("device-003", "192.168.1.102"),
 ];
 
 let mut handles = vec![];
@@ -223,10 +223,10 @@ Your OTA service now has a complete workflow:
 ### 1. **Device Registration** (via MQTT)
 ```json
 {
-  "device_id": "esp32-001",
+  "device_id": "device-001",
   "ip_address": "192.168.1.100",
   "firmware_version": "1.0.0",
-  "ota_readiness_topic": "esp32-001/ota",
+  "ota_readiness_topic": "device-001/ota",
   "ota_port": 3232  // Optional: custom OTA port
 }
 ```
@@ -286,7 +286,7 @@ ota_service.upload_firmware_ota(device_id, device_ip, version, password)
 
 ## Device Requirements
 
-Your ESP32 must be running **ESPHome firmware** with OTA enabled:
+Your device must be running **ESPHome firmware** with OTA enabled:
 
 ```yaml
 # ESPHome configuration (home.yaml)
@@ -378,7 +378,7 @@ The implementation handles all common failure scenarios:
 
 ```bash
 mkdir -p /var/lib/ota-service/firmware
-cp my_firmware.bin "/var/lib/ota-service/firmware/esp32-001 - 1.2.3.bin"
+cp my_firmware.bin "/var/lib/ota-service/firmware/device-001 - 1.2.3.bin"
 ```
 
 ### Step 2: Verify Device Accessibility
@@ -396,7 +396,7 @@ nc -zv 192.168.1.100 3232
 ```rust
 // In your code:
 let client = OtaClient::new("192.168.1.100".to_string(), 3232);
-let firmware = std::fs::read("/var/lib/ota-service/firmware/esp32-001 - 1.2.3.bin")?;
+let firmware = std::fs::read("/var/lib/ota-service/firmware/device-001 - 1.2.3.bin")?;
 client.upload_firmware(&firmware, None).await?;
 println!("Success!");
 ```
@@ -409,7 +409,7 @@ journalctl -u ota-service -f
 
 # Check device in database
 sqlite3 /var/lib/ota-service/devices.db \
-  "SELECT device_id, firmware_version, state FROM devices WHERE device_id = 'esp32-001';"
+  "SELECT device_id, firmware_version, state FROM devices WHERE device_id = 'device-001';"
 ```
 
 ---
@@ -563,7 +563,7 @@ You now have a **complete, production-ready ESPHome OTA implementation** that:
 ✅ Works with both authenticated and unauthenticated devices  
 ✅ Is fully documented with examples and guides  
 
-You can now upload firmware to ESP32 devices wirelessly! 🚀
+You can now upload firmware to devices wirelessly! 🚀
 
 ---
 

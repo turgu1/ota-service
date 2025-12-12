@@ -453,13 +453,13 @@ pub enum DeviceState {
 **Payload** (JSON):
 ```json
 {
-  "device_id": "esp32-001",
+  "device_id": "device-001",
   "ip_address": "192.168.1.100",
   "mac_address": "AA:BB:CC:DD:EE:FF",
   "firmware_version": "1.0.0",
   "ota_port": 3232,
-  "ota_readiness_topic": "home/esp32-001/ota/ready",
-  "ota_mode_topic": "home/esp32-001/ota/mode",
+  "ota_readiness_topic": "home/device-001/ota/ready",
+  "ota_mode_topic": "home/device-001/ota/mode",
   "rssi": -65
 }
 ```
@@ -583,8 +583,8 @@ Receive: `[0x00]` (OK)
 **Format**: `{device_id} - {version}.bin`
 
 **Examples**:
-- `esp32-001 - 1.0.0.bin`
-- `esp32-prod - 2.1.3.bin`
+- `device-001 - 1.0.0.bin`
+- `device-prod - 2.1.3.bin`
 - `sensor-kitchen - 1.2.0.bin`
 
 **Version Format**: Semantic versioning (MAJOR.MINOR.PATCH)
@@ -623,13 +623,13 @@ sqlite3 /var/lib/ota-service/ota.db
 SELECT device_id, firmware_version, device_state FROM devices;
 
 # Check device state
-SELECT * FROM devices WHERE device_id = 'esp32-001';
+SELECT * FROM devices WHERE device_id = 'device-001';
 
 # Update device state (manual)
-UPDATE devices SET device_state = 'Idle' WHERE device_id = 'esp32-001';
+UPDATE devices SET device_state = 'Idle' WHERE device_id = 'device-001';
 
 # Delete device
-DELETE FROM devices WHERE device_id = 'esp32-001';
+DELETE FROM devices WHERE device_id = 'device-001';
 ```
 
 ### Firmware Management
@@ -639,7 +639,7 @@ DELETE FROM devices WHERE device_id = 'esp32-001';
 ls -lh /var/lib/ota-service/firmware/
 
 # Deploy new firmware
-cp new-firmware.bin /var/lib/ota-service/firmware/esp32-001-2.0.0.bin
+cp new-firmware.bin /var/lib/ota-service/firmware/device-001-2.0.0.bin
 
 # Check firmware permissions
 ls -la /var/lib/ota-service/firmware/
@@ -648,7 +648,7 @@ ls -la /var/lib/ota-service/firmware/
 du -h /var/lib/ota-service/firmware/*.bin
 
 # Remove old firmware
-rm /var/lib/ota-service/firmware/esp32-001-1.0.0.bin
+rm /var/lib/ota-service/firmware/device-001-1.0.0.bin
 ```
 
 ### MQTT Testing
@@ -662,19 +662,19 @@ mosquitto_sub -h localhost -t "home/ota/registration" -v
 
 # Manual registration trigger (testing)
 mosquitto_pub -h localhost -t "home/ota/registration" -m '{
-  "device_id": "esp32-test",
+  "device_id": "device-test",
   "ip_address": "192.168.1.99",
   "mac_address": "AA:BB:CC:DD:EE:FF",
   "firmware_version": "1.0.0",
   "ota_port": 3232,
-  "ota_readiness_topic": "home/esp32-test/ota/ready",
-  "ota_mode_topic": "home/esp32-test/ota/mode",
+  "ota_readiness_topic": "home/device-test/ota/ready",
+  "ota_mode_topic": "home/device-test/ota/mode",
   "rssi": -65
 }'
 
 # Clear retained messages
-mosquitto_pub -h localhost -t "home/esp32-001/ota/mode" -r -n
-mosquitto_pub -h localhost -t "home/esp32-001/ota/ready" -r -n
+mosquitto_pub -h localhost -t "home/device-001/ota/mode" -r -n
+mosquitto_pub -h localhost -t "home/device-001/ota/ready" -r -n
 ```
 
 ### Debugging
