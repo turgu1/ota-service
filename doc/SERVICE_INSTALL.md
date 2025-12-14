@@ -20,6 +20,35 @@ This guide walks you through installing the OTA Service as a system service that
 - Rust toolchain installed (for building)
 - MQTT broker accessible on your network
 
+## Installation Methods
+
+You can install the OTA Service using either of these methods:
+
+### Automated Installation (Recommended)
+
+An installation script is provided that automates all the steps described in this guide:
+
+```bash
+# Make the script executable
+chmod +x install.sh
+
+# Run the installation script
+sudo ./install.sh /path/to/ota-service
+```
+
+The script will:
+- Build the release binary
+- Create the system user and directory structure
+- Install binary, configuration, and systemd service
+- Enable and start the service automatically
+- Verify the installation and display status
+
+After installation, you'll need to edit `/etc/ota-service/config.yaml` with your settings and restart the service.
+
+### Manual Installation
+
+Follow the step-by-step instructions below if you prefer manual control or need to customize the installation process.
+
 ## Installation Steps
 
 ### 1. Build the Service
@@ -58,15 +87,27 @@ sudo chown -R ota-service:ota-service /var/log/ota-service
 
 # Set permissions
 sudo chmod 755 /var/lib/ota-service
-sudo chmod 755 /var/lib/ota-service/firmware
+sudo chmod 770 /var/lib/ota-service/firmware
 sudo chmod 755 /var/log/ota-service
 ```
 
 **Directory structure:**
 - `/etc/ota-service/` - Configuration files (owned by root)
 - `/var/lib/ota-service/` - Database and working directory
-- `/var/lib/ota-service/firmware/` - Firmware storage
+- `/var/lib/ota-service/firmware/` - Firmware storage (770 permissions for group access)
 - `/var/log/ota-service/` - Log files
+
+**Important:** The firmware folder has `770` permissions (rwxrwx---), allowing the `ota-service` user and group members to create/modify firmware files. Users who need to deploy firmware binaries must be added to the `ota-service` group:
+
+```bash
+# Add user to ota-service group
+sudo usermod -a -G ota-service <username>
+
+# User must log out and back in for group membership to take effect
+
+# Verify group membership
+groups
+```
 
 ### 4. Install Binary
 
@@ -79,7 +120,7 @@ sudo chown root:root /usr/local/bin/ota-service
 sudo chmod 755 /usr/local/bin/ota-service
 
 # Verify installation
-/usr/local/bin/ota-service --version
+ls -l /usr/local/bin/ota-service
 ```
 
 ### 5. Install Configuration
@@ -203,10 +244,28 @@ sudo -u ota-service test -w /var/lib/ota-service/devices.db && echo "OK" || echo
 # Check firmware directory
 ls -la /var/lib/ota-service/firmware/
 
-# Test write access
+# Test write access as ota-service user
 sudo -u ota-service touch /var/lib/ota-service/firmware/test.txt && echo "OK" || echo "FAIL"
 sudo -u ota-service rm /var/lib/ota-service/firmware/test.txt
 ```
+
+### Add Users to ota-service Group
+
+Users who will deploy firmware binaries need write access to the firmware folder:
+
+```bash
+# Add user to ota-service group
+sudo usermod -a -G ota-service username
+
+# Verify group membership (user must log out/in first)
+groups username
+
+# Test firmware folder access (after re-login)
+touch /var/lib/ota-service/firmware/test.txt && echo "OK" || echo "FAIL"
+rm /var/lib/ota-service/firmware/test.txt
+```
+
+**Note:** Users must log out and log back in for group membership changes to take effect.
 
 ## Service Management
 

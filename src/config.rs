@@ -17,6 +17,9 @@ pub struct Configuration {
     /// Pushover notification configuration (optional)
     #[serde(default)]
     pub pushover: Option<PushoverConfig>,
+    /// Home Assistant MQTT discovery configuration (optional)
+    #[serde(default)]
+    pub home_assistant: Option<HomeAssistantConfig>,
     /// Web interface configuration
     pub web: WebConfig,
 }
@@ -128,6 +131,35 @@ fn default_ota_port() -> u16 {
 
 fn default_erase_firmware() -> bool {
     false
+}
+
+/// Home Assistant MQTT discovery configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HomeAssistantConfig {
+    /// Enable/disable Home Assistant MQTT discovery
+    pub enabled: bool,
+    /// MQTT discovery topic prefix (default: "homeassistant")
+    #[serde(default = "default_ha_discovery_prefix")]
+    pub discovery_prefix: String,
+    /// Unique node ID for this OTA service instance
+    pub node_id: String,
+    /// Friendly device name displayed in Home Assistant
+    pub device_name: String,
+    /// Device manufacturer name (optional)
+    pub manufacturer: Option<String>,
+    /// Device model name (optional)
+    pub model: Option<String>,
+    /// Update interval in seconds for publishing sensor states
+    #[serde(default = "default_ha_update_interval")]
+    pub update_interval: u64,
+}
+
+fn default_ha_discovery_prefix() -> String {
+    "homeassistant".to_string()
+}
+
+fn default_ha_update_interval() -> u64 {
+    60
 }
 
 impl Configuration {
@@ -303,6 +335,7 @@ mod tests {
                 erase_firmware_after_upload: false,
             },
             pushover: None,
+            home_assistant: None,
             web: WebConfig {
                 port: 8080,
                 username: "admin".to_string(),

@@ -89,6 +89,33 @@ pushover:
   #  2 = emergency (require confirmation)
   priority: 0
 
+# Home Assistant MQTT Discovery configuration (optional)
+# Enables automatic device registration in Home Assistant
+home_assistant:
+  # Enable/disable Home Assistant MQTT discovery
+  enabled: false
+  
+  # MQTT discovery topic prefix (Home Assistant default: "homeassistant")
+  # Home Assistant listens to this prefix for device discovery messages
+  discovery_prefix: "homeassistant"
+  
+  # Unique node ID for this OTA service instance
+  # Used to identify this service in Home Assistant
+  node_id: "ota_service"
+  
+  # Friendly device name displayed in Home Assistant
+  device_name: "OTA Service"
+  
+  # Device manufacturer name (optional)
+  manufacturer: "ESPHome OTA Service"
+  
+  # Device model name (optional)
+  model: "Firmware Update Manager"
+  
+  # Update interval in seconds for publishing sensor states
+  # How often to publish device count, update status, etc. to Home Assistant
+  update_interval: 60
+
 # Web interface configuration
 web:
   # Web server port

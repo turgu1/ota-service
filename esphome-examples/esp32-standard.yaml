@@ -17,63 +17,83 @@ substitutions:
   mqtt_port: "1883"  # 8883 for TLS
   topic_prefix: "devices/${device_id}"
 
-  # If the device uses a static IP, set it here
-  # ip_address: "10.0.0.254"
+  # IMPORTANT:
+  # If the device uses a static IP, set it here.
+  # If not, be sure that your DHCP lease time is long enough to avoid IP changes,
+  # or make it's address reservation in your DHCP Config.
+  # -->
+  # ip_address: "10.0.0.253"
   # gateway_address: "10.0.0.1"
   # subnet_mask: "255.255.255.0"
 
 esphome:
   name: ${device_name}
-  platform: ESP32
-  board: esp32dev
-  
-  # Run registration on boot
   on_boot:
     priority: -100  # Run after WiFi and MQTT are connected
     then:
-      - delay: 5s  # Wait for MQTT connection to stabilize
+      - delay: 1s  # Wait for MQTT connection to stabilize
       - script.execute: register_device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
 
 # WiFi configuration
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
-  # If the device IP address is static, set it here (uncomment the following lines)
+  # If the device IP address is static, set it here
   # manual_ip: 
   #   static_ip: $ip_address
   #   gateway: $gateway_address
   #   subnet: $subnet_mask
-
-  # Enable fallback hotspot in case wifi connection fails
+  
+  # Fast connect for battery devices
+  fast_connect: true
+  
+  # Enable fallback hotspot
   ap:
     ssid: "${device_name} Fallback"
     password: !secret ap_password
 
-# Enable logging
+# Text sensor for IP address.
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      id: device_ip
+  - platform: wifi_info
+    mac_address:
+      id: wifi_mac_address
+
+sensor:
+  - platform: wifi_signal
+    id: wifi_rssi
+    update_interval: 60s
+
+# Enable logging (reduce level to save power)
 logger:
   level: INFO
 
-# Enable Home Assistant API (optional)
-api:
-  encryption:
-    key: !secret api_encryption_key
-
 # Enable OTA updates via ESPHome protocol v2
-# This is the critical component that allows the OTA service to upload firmware
+# Critical for OTA service integration
 ota:
-  password: ${ota_password}
-  port: ${ota_port}
+  - platform: esphome
+    password: !secret ota_password
+    port: ${ota_port}
 
 # MQTT configuration - REQUIRED for OTA service integration
 mqtt:
-  broker: !secret mqtt_broker
+  broker: !secret mqtt_broker_address
   port: ${mqtt_port}
   username: !secret mqtt_username
   password: !secret mqtt_password
   client_id: ${device_id}
   
-  # Subscribe to OTA mode topic - service will publish NEW-FIRMWARE-VERSION here
+  keepalive: 60s
+  
+  # Subscribe to OTA mode topic
   on_message:
     - topic: ${topic_prefix}/ota-mode
       payload: 'NEW-FIRMWARE-VERSION'
@@ -84,64 +104,30 @@ mqtt:
             topic: ${topic_prefix}/ota-ready
             payload: "OTA-READY"
             retain: false
-            qos: 2
+            qos: 1
 
         # Optional: Turn off sensors or close connections if needed
         # The device will receive firmware upload shortly
 
-# Text sensor for IP address
-text_sensor:
-  - platform: wifi_info
-    ip_address:
-      name: "${friendly_name} IP Address"
-      id: device_ip
-
-# Script to register device with OTA service
 script:
   - id: register_device
     then:
       - wait_until:
           mqtt.connected:
-      - delay: 2s
-      - lambda: |-
-          // Get IP address and MAC address
-          std::string ip = id(device_ip).state.c_str();
-          std::string mac = wifi::global_wifi_component->get_mac_address_pretty();
-          int rssi = wifi::global_wifi_component->wifi_rssi();
-          
-          // Build registration JSON
-          std::string registration = "{";
-          registration += "\"device_id\":\"${device_id}\",";
-          registration += "\"ip_address\":\"" + ip + "\",";
-          registration += "\"mac_address\":\"" + mac + "\",";
-          registration += "\"firmware_version\":\"${firmware_version}\",";
-          registration += "\"ota_readiness_topic\":\"devices/${device_id}/ready\",";
-          registration += "\"ota_mode_topic\":\"devices/${device_id}/ota-mode\",";
-          registration += "\"uses_deep_sleep\":false,";
-          registration += "\"rssi\":" + std::to_string(rssi);
-          registration += "}";
-          
-          // Publish registration to OTA service
-          id(mqtt_client).publish("ota-service/register", registration);
-          
-          ESP_LOGI("ota", "Device registered: %s", registration.c_str());
+      - delay: 500ms
+      - mqtt.publish_json: 
+          topic: "${ota_service_name}/register"
+          payload: |-
+            root["device_id"] = "${device_id}"; 
+            root["ip_address"] = id(device_ip).state.c_str();
+            root["mac_address"] = id(wifi_mac_address).state.c_str();
+            root["firmware_version"] = "${firmware_version}";
+            root["ota_readiness_topic"] = "${topic_prefix}/ota-ready";
+            root["ota_mode_topic"] = "${topic_prefix}/ota-mode";
+            root["uses_deep_sleep"] = false;
+            root["rssi"] = id(wifi_rssi).state;
+          retain: false # Important: do *NOT* retain registration messages
+          qos: 1
+      - delay: 1s
+      - logger.log: "Device registered with OTA service"
 
-# Example sensor - add your actual sensors here
-sensor:
-  - platform: wifi_signal
-    name: "${friendly_name} WiFi Signal"
-    update_interval: 60s
-
-  - platform: uptime
-    name: "${friendly_name} Uptime"
-    update_interval: 60s
-
-# Example binary sensor
-binary_sensor:
-  - platform: status
-    name: "${friendly_name} Status"
-
-# Example switch
-switch:
-  - platform: restart
-    name: "${friendly_name} Restart"

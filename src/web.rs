@@ -80,6 +80,7 @@ pub struct ConfigResponse {
     service: ServiceConfigView,
     firmware: MaskedFirmwareConfig,
     pushover: Option<MaskedPushoverConfig>,
+    home_assistant: Option<HomeAssistantConfigView>,
     web: MaskedWebConfig,
 }
 
@@ -125,6 +126,17 @@ pub struct MaskedPushoverConfig {
     pub device: Option<String>,
     pub priority: i8,
     pub enabled: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct HomeAssistantConfigView {
+    pub enabled: bool,
+    pub discovery_prefix: String,
+    pub node_id: String,
+    pub device_name: String,
+    pub manufacturer: Option<String>,
+    pub model: Option<String>,
+    pub update_interval: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -334,6 +346,18 @@ async fn config_handler(State(state): State<AppState>, session: Session) -> Resp
             priority: p.priority,
             enabled: p.enabled,
         }),
+        home_assistant: config
+            .home_assistant
+            .as_ref()
+            .map(|ha| HomeAssistantConfigView {
+                enabled: ha.enabled,
+                discovery_prefix: ha.discovery_prefix.clone(),
+                node_id: ha.node_id.clone(),
+                device_name: ha.device_name.clone(),
+                manufacturer: ha.manufacturer.clone(),
+                model: ha.model.clone(),
+                update_interval: ha.update_interval,
+            }),
         web: MaskedWebConfig {
             port: config.web.port,
             username: mask_string(&config.web.username),

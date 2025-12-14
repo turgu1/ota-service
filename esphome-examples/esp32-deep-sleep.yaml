@@ -69,8 +69,15 @@ wifi:
 text_sensor:
   - platform: wifi_info
     ip_address:
-      name: "${friendly_name} IP Address"
       id: device_ip
+  - platform: wifi_info
+    mac_address:
+      id: wifi_mac_address
+
+sensor:
+  - platform: wifi_signal
+    id: wifi_rssi
+    update_interval: 60s
 
 # Enable logging (reduce level to save power)
 logger:
@@ -146,26 +153,22 @@ mqtt:
             topic: ${topic_prefix}/ota-ready
             payload: "OTA-READY"
             retain: false
-            qos: 2
+            qos: 1
 
         # Optional: Turn off sensors or close connections if needed
         # The device will receive firmware upload shortly
 
     - topic: ${topic_prefix}/ota-mode
-      payload: 'OTA-COMPLETED'
+      payload: 'OTA-ABORTED'
       then:
         - globals.set:
             id: ota_update
             value: 'false'
-        - mqtt.publish:
-            topic: ${topic_prefix}/ota-mode
-            payload: ""
-            retain: true 
         - deep_sleep.allow: deep_sleep_control
 
   on_connect:
     then:
-      - delay: 2s
+      - delay: 500ms
       - if: 
           condition:
             lambda: "return id(deep_sleep_reset) == false;"
@@ -176,14 +179,14 @@ mqtt:
                 payload: |-
                   root["device_id"] = "${device_id}"; 
                   root["ip_address"] = id(device_ip).state.c_str();
-                  root["mac_address"] = wifi::global_wifi_component->get_mac_address_pretty().c_str();
+                  root["mac_address"] = id(wifi_mac_address).state.c_str();
                   root["firmware_version"] = "${firmware_version}";
                   root["ota_readiness_topic"] = "${topic_prefix}/ota-ready";
                   root["ota_mode_topic"] = "${topic_prefix}/ota-mode";
                   root["uses_deep_sleep"] = true;
-                  root["rssi"] = wifi::global_wifi_component->wifi_rssi();
-                retain: false
-                qos: 2
+                  root["rssi"] = id(wifi_rssi).state;
+                retain: false # Important: do NOT retain registration messages
+                qos: 1
             - delay: 2s
             - logger.log: "Deep sleep device registered with OTA service"
 
@@ -191,4 +194,3 @@ mqtt:
       - globals.set:
           id: mqtt_work_is_complete
           value: 'true'
-

@@ -34,6 +34,8 @@ impl MqttClient {
         username: Option<&str>,
         password: Option<&str>,
         keep_alive: u64,
+        lwt_topic: Option<&str>,
+        lwt_payload: Option<&str>,
     ) -> Result<Self, String> {
         info!(
             "Creating MQTT client: {}:{} (client_id: {})",
@@ -48,6 +50,17 @@ impl MqttClient {
             debug!("MQTT credentials configured");
         }
 
+        // Set Last Will and Testament if provided
+        if let (Some(topic), Some(payload)) = (lwt_topic, lwt_payload) {
+            mqttoptions.set_last_will(rumqttc::LastWill::new(
+                topic,
+                payload,
+                QoS::AtLeastOnce,
+                false,
+            ));
+            info!("MQTT Last Will configured: {} -> {}", topic, payload);
+        }
+
         let (client, eventloop) = AsyncClient::new(mqttoptions, 100);
 
         Ok(MqttClient {
@@ -56,16 +69,29 @@ impl MqttClient {
         })
     }
 
+    /// Get a reference to the AsyncClient for Home Assistant or other integrations
+    pub fn client(&self) -> &AsyncClient {
+        &self.client
+    }
+
     /// Wait for connection to be established
     pub async fn wait_connected(&self, max_attempts: u32) -> Result<(), String> {
-        info!("Waiting for MQTT connection (max {} attempts)", max_attempts);
+        info!(
+            "Waiting for MQTT connection (max {} attempts)",
+            max_attempts
+        );
 
         for attempt in 1..=max_attempts {
             debug!("Connection attempt {}/{}", attempt, max_attempts);
             sleep(Duration::from_secs(1)).await;
 
             // Try to subscribe to empty topic to test connection
-            if self.client.subscribe("$SYS/broker/version", rumqttc::QoS::AtMostOnce).await.is_ok() {
+            if self
+                .client
+                .subscribe("$SYS/broker/version", rumqttc::QoS::AtMostOnce)
+                .await
+                .is_ok()
+            {
                 info!("MQTT connection established");
                 return Ok(());
             }

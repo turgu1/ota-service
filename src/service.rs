@@ -1,11 +1,13 @@
 use crate::config::Configuration;
 use crate::database::{Database, DeviceState};
 use crate::firmware::FirmwareManager;
+use crate::home_assistant::HomeAssistantDiscovery;
 use crate::mqtt_client::MqttClient;
 use crate::ota_client::OtaClient;
 use crate::pushover::PushoverClient;
 use log::{debug, error, info, warn};
 use rumqttc::QoS;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -38,6 +40,21 @@ pub async fn run(config: Configuration, config_path: String) -> Result<(), Strin
         config.firmware.storage_path
     );
 
+    // Determine LWT topic and payload if Home Assistant is enabled
+    let (lwt_topic, lwt_payload) = if let Some(ha_config) = &config.home_assistant {
+        if ha_config.enabled {
+            let topic = format!(
+                "{}/binary_sensor/{}/service_status/state",
+                ha_config.discovery_prefix, ha_config.node_id
+            );
+            (Some(topic), Some("OFF".to_string()))
+        } else {
+            (None, None)
+        }
+    } else {
+        (None, None)
+    };
+
     // Initialize MQTT client
     let mqtt_client = match MqttClient::new(
         &config.mqtt.host,
@@ -46,6 +63,8 @@ pub async fn run(config: Configuration, config_path: String) -> Result<(), Strin
         config.mqtt.username.as_deref(),
         config.mqtt.password.as_deref(),
         config.mqtt.keep_alive,
+        lwt_topic.as_deref(),
+        lwt_payload.as_deref(),
     ) {
         Ok(client) => Arc::new(Mutex::new(client)),
         Err(e) => {
@@ -112,6 +131,10 @@ pub async fn run(config: Configuration, config_path: String) -> Result<(), Strin
         });
     };
 
+    // Initialize statistics counters
+    let success_count = Arc::new(AtomicU64::new(0));
+    let failure_count = Arc::new(AtomicU64::new(0));
+
     // Create OTA service
     let service = OtaService::new(
         Arc::clone(&database),
@@ -124,6 +147,8 @@ pub async fn run(config: Configuration, config_path: String) -> Result<(), Strin
         config.firmware.default_ota_port,
         config.firmware.erase_firmware_after_upload,
         pushover_client,
+        Arc::clone(&success_count),
+        Arc::clone(&failure_count),
     );
 
     // Start firmware check task
@@ -135,6 +160,25 @@ pub async fn run(config: Configuration, config_path: String) -> Result<(), Strin
     service.start_mqtt_listener().await;
 
     info!("OTA service is running");
+
+    // Start Home Assistant discovery if configured
+    if let Some(ha_config) = &config.home_assistant {
+        if ha_config.enabled {
+            info!("Starting Home Assistant MQTT discovery");
+            let ha_mqtt_client = mqtt_client.lock().await.client().clone();
+            let ha_database = Arc::clone(&database);
+            let ha_discovery = Arc::new(HomeAssistantDiscovery::new(
+                ha_config.clone(),
+                ha_mqtt_client,
+                ha_database,
+                Arc::clone(&success_count),
+                Arc::clone(&failure_count),
+            ));
+            tokio::spawn(async move {
+                ha_discovery.start().await;
+            });
+        }
+    }
 
     // Start web server
     let web_database = Arc::clone(&database);
@@ -176,6 +220,10 @@ pub struct OtaService {
     erase_firmware_after_upload: bool,
     /// Pushover notification client (optional)
     pushover_client: Option<Arc<PushoverClient>>,
+    /// Successful update counter
+    success_count: Arc<AtomicU64>,
+    /// Failed update counter
+    failure_count: Arc<AtomicU64>,
 }
 
 impl OtaService {
@@ -192,6 +240,8 @@ impl OtaService {
     /// * `default_ota_port` - Default OTA port number (devices can override)
     /// * `erase_firmware_after_upload` - Delete firmware file after successful upload
     /// * `pushover_client` - Optional Pushover notification client
+    /// * `success_count` - Atomic counter for successful updates
+    /// * `failure_count` - Atomic counter for failed updates
     pub fn new<P, S>(
         database: Arc<Mutex<Database>>,
         firmware_manager: Arc<FirmwareManager>,
@@ -203,6 +253,8 @@ impl OtaService {
         default_ota_port: u16,
         erase_firmware_after_upload: bool,
         pushover_client: Option<Arc<PushoverClient>>,
+        success_count: Arc<AtomicU64>,
+        failure_count: Arc<AtomicU64>,
     ) -> Self
     where
         P: Fn(&str, &str, QoS, bool) + Send + Sync + 'static,
@@ -220,6 +272,8 @@ impl OtaService {
             default_ota_port,
             erase_firmware_after_upload,
             pushover_client,
+            success_count,
+            failure_count,
         }
     }
 
@@ -343,6 +397,8 @@ impl OtaService {
         let ota_password = self.ota_password.clone();
         let default_ota_port = self.default_ota_port;
         let erase_firmware_after_upload = self.erase_firmware_after_upload;
+        let success_count = Arc::clone(&self.success_count);
+        let failure_count = Arc::clone(&self.failure_count);
 
         // Subscribe to the registration topic
         {
@@ -464,6 +520,12 @@ impl OtaService {
                                                         Ok(mut ota_client) => {
                                                             match ota_client.update(&fw_data) {
                                                                 Ok(()) => {
+                                                                    // Increment success counter
+                                                                    success_count.fetch_add(
+                                                                        1,
+                                                                        Ordering::Relaxed,
+                                                                    );
+
                                                                     info!(
                                                                         "OTA successful for {}",
                                                                         device_id
@@ -511,6 +573,12 @@ impl OtaService {
                                                                     }
                                                                 }
                                                                 Err(e) => {
+                                                                    // Increment failure counter
+                                                                    failure_count.fetch_add(
+                                                                        1,
+                                                                        Ordering::Relaxed,
+                                                                    );
+
                                                                     error!(
                                                                         "OTA failed for {}: {}",
                                                                         device_id, e

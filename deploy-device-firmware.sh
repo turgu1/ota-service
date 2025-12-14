@@ -3,17 +3,17 @@
 # This script deploys compiled ESPHome firmware to the OTA service firmware directory
 #
 # Usage: cd to the directory containing your ESPHome YAML file, then run:
-#        <path-to-script>/deploy-firmware.sh <device.yaml>
+#        <path-to-script>/deploy-device-firmware.sh <device.yaml>
 #
 # Example: 
 #   cd /path/to/esphome-configs
-#   /path/to/ota-service/deploy-firmware.sh esp32-kitchen.yaml
+#   /path/to/ota-service/deploy-device-firmware.sh esp32-kitchen.yaml
 
 set -e  # Exit on error
 
 # OTA Service Configuration File
 # TODO: Adjust this path to match your OTA service configuration file location
-OTA_CONFIG_FILE="$HOME/Dev/ota-service/test-data/config.yaml"
+OTA_CONFIG_FILE="/etc/ota-service/config.yaml"
 
 # Color codes for output
 RED='\033[0;31m'
@@ -79,10 +79,23 @@ fi
 
 print_success "Firmware folder: $FIRMWARE_FOLDER"
 
-# Create firmware folder if it doesn't exist
+# Verify firmware folder exists
 if [ ! -d "$FIRMWARE_FOLDER" ]; then
-    print_info "Creating firmware folder: $FIRMWARE_FOLDER"
-    mkdir -p "$FIRMWARE_FOLDER"
+    print_error "Firmware folder does not exist: $FIRMWARE_FOLDER"
+    print_info "The OTA service must be installed first, or create the folder manually."
+    exit 1
+fi
+
+# Check write permissions to firmware folder
+if [ ! -w "$FIRMWARE_FOLDER" ]; then
+    print_error "No write permission to firmware folder: $FIRMWARE_FOLDER"
+    print_info "You must be a member of the 'ota-service' group to deploy firmware."
+    print_info "Ask your system administrator to run:"
+    print_info "  sudo usermod -a -G ota-service $USER"
+    print_info "Then log out and back in for the group change to take effect."
+    print_info "Current user: $USER"
+    print_info "Current groups: $(groups)"
+    exit 1
 fi
 
 # Step 2: Extract device information from ESPHome YAML file

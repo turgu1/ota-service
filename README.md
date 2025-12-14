@@ -19,6 +19,7 @@ A robust Rust-based service that automatically manages firmware updates for devi
 ✅ **Device State Tracking** - SQLite database tracks device status and update progress  
 ✅ **Authentication Support** - MD5 and SHA256 password authentication  
 ✅ **Pushover Notifications** - Real-time alerts for updates, failures, and new devices  
+✅ **Home Assistant Integration** - MQTT discovery for automatic sensor creation  
 ✅ **Timeout Protection** - All network operations have configurable timeouts  
 ✅ **Comprehensive Error Handling** - 13 distinct error codes with descriptive messages  
 ✅ **Concurrent Updates** - Configurable parallel firmware uploads  
@@ -85,6 +86,22 @@ pushover:  # Optional push notifications
   user_key: "your_pushover_user_key"
   device: "iphone"  # Optional: specific device name
   priority: 0  # -2 to 2
+
+home_assistant:  # Optional Home Assistant MQTT discovery
+  enabled: false
+  discovery_prefix: "homeassistant"
+  node_id: "ota_service"
+  device_name: "OTA Service"
+  manufacturer: "ESPHome OTA Service"
+  model: "Firmware Update Manager"
+  update_interval: 60  # seconds
+
+web:
+  port: 8080
+  username: "admin"
+  password: "admin"
+  refresh_period: 5
+  edit_session_timeout: 15
 ```
 
 **Configuration Notes:**
@@ -221,15 +238,30 @@ device-garage - 1.5.0.bin
 
 The service automatically selects the **highest version number** for each device.
 
-## Deploying Firmware with deploy-firmware.sh
+## Deploying Firmware with deploy-device-firmware.sh
 
-The `deploy-firmware.sh` script simplifies firmware deployment by automating the process of compiling ESPHome firmware and copying it to the OTA service firmware directory.
+The `deploy-device-firmware.sh` script simplifies firmware deployment by automating the process of compiling ESPHome firmware and copying it to the OTA service firmware directory.
 
 ### Prerequisites
 
 - ESPHome CLI installed (`pip install esphome`)
 - ESPHome device configuration YAML files
 - OTA service configured and running
+- **User must be member of `ota-service` group** (for daemon installations)
+
+### User Group Membership
+
+If the OTA service is installed as a daemon, the firmware folder has restricted permissions (770). Users deploying firmware must be added to the `ota-service` group:
+
+```bash
+# Add your user to the ota-service group
+sudo usermod -a -G ota-service $USER
+
+# Log out and back in for group change to take effect
+
+# Verify group membership
+groups
+```
 
 ### Usage
 
@@ -466,6 +498,44 @@ The service sends push notifications via Pushover for:
 - **Startup** (Low priority): Service started successfully
 - **Startup Error** (High priority): Service failed to start with error details
 
+See [PUSHOVER.md](PUSHOVER.md) for complete notification documentation.
+
+## Home Assistant Integration
+
+The OTA Service can automatically register itself in Home Assistant using MQTT discovery:
+
+### Features
+- **Automatic Device Creation** - No manual configuration needed
+- **Real-time Monitoring** - Device count, updates available, active updates
+- **Service Status** - Binary sensor shows if service is online
+- **Dashboard Ready** - Create cards to monitor firmware deployment
+
+### Quick Setup
+
+Add to your `config.yaml`:
+
+```yaml
+home_assistant:
+  enabled: true
+  discovery_prefix: "homeassistant"
+  node_id: "ota_service"
+  device_name: "OTA Service"
+  update_interval: 60
+```
+
+### Available Sensors
+
+Once enabled, the OTA Service appears as a device with:
+- Device Count sensor
+- Updates Available sensor
+- Devices Updating sensor
+- Last Check timestamp
+- Successful Updates counter (since restart)
+- Failed Updates counter (since restart)
+- Service Status binary sensor
+
+See [doc/HOME_ASSISTANT.md](doc/HOME_ASSISTANT.md) for complete integration guide, dashboard examples, and troubleshooting.
+
 ## Database Schema
 
 The service maintains a SQLite database with two tables:
@@ -494,17 +564,24 @@ ota-service/
 │   ├── config.rs                # Configuration management
 │   ├── database.rs              # SQLite device tracking
 │   ├── firmware.rs              # Firmware file management
+│   ├── home_assistant.rs        # Home Assistant MQTT discovery
 │   ├── mqtt.rs                  # MQTT message handling
 │   ├── mqtt_client.rs           # MQTT client wrapper
 │   ├── ota_client.rs            # ESPHome OTA protocol v2 implementation
 │   ├── pushover.rs              # Pushover notification client
-│   └── service.rs               # OTA service coordinator
-├── doc/ota/                     # Comprehensive documentation
-│   ├── README.md                # Documentation index
-│   ├── OTA_PROTOCOL.md          # Protocol specification
-│   ├── OTA_IMPLEMENTATION.md    # Implementation guide
-│   ├── OTA_QUICK_REFERENCE.md   # Quick reference
-│   └── ...
+│   ├── service.rs               # OTA service coordinator
+│   └── web.rs                   # Web server and API
+├── static/
+│   └── index.html               # Web interface
+├── doc/
+│   ├── HOME_ASSISTANT.md        # Home Assistant integration guide
+│   ├── WEB_INTERFACE.md         # Web interface documentation
+│   ├── SERVICE_INSTALL.md       # Installation guide
+│   └── ota/                     # OTA protocol documentation
+│       ├── README.md            # Documentation index
+│       ├── OTA_PROTOCOL.md      # Protocol specification
+│       ├── OTA_IMPLEMENTATION.md # Implementation guide
+│       └── ...
 ├── Cargo.toml                   # Rust dependencies
 └── README.md                    # This file
 ```
@@ -513,8 +590,15 @@ ota-service/
 
 Comprehensive documentation is available in the `doc/` directory:
 
+**Installation & Configuration:**
+- **[doc/SERVICE_INSTALL.md](doc/SERVICE_INSTALL.md)** - Complete installation guide for Linux systemd
+
 **Web Interface:**
 - **[doc/WEB_INTERFACE.md](doc/WEB_INTERFACE.md)** - Web interface features and usage guide
+
+**Integrations:**
+- **[doc/HOME_ASSISTANT.md](doc/HOME_ASSISTANT.md)** - Home Assistant MQTT discovery integration
+- **[PUSHOVER.md](PUSHOVER.md)** - Push notification configuration
 
 **OTA Protocol:**
 - **[doc/ota/README.md](doc/ota/README.md)** - Documentation overview and index

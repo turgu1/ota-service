@@ -1420,6 +1420,22 @@
                 html += '</div>';
             }
 
+            // Home Assistant Configuration (if enabled)
+            if (config.home_assistant) {
+                html += '<div class="config-section">';
+                html += '<h2>Home Assistant Configuration</h2>';
+                html += '<table class="config-table">';
+                html += `<tr><td class="config-key">Enabled:</td><td>${editableField('home_assistant', 'enabled', config.home_assistant.enabled)}</td></tr>`;
+                html += `<tr><td class="config-key">Discovery Prefix:</td><td>${editableField('home_assistant', 'discovery_prefix', config.home_assistant.discovery_prefix)}</td></tr>`;
+                html += `<tr><td class="config-key">Node ID:</td><td>${editableField('home_assistant', 'node_id', config.home_assistant.node_id)}</td></tr>`;
+                html += `<tr><td class="config-key">Device Name:</td><td>${editableField('home_assistant', 'device_name', config.home_assistant.device_name)}</td></tr>`;
+                html += `<tr><td class="config-key">Manufacturer:</td><td>${editableField('home_assistant', 'manufacturer', config.home_assistant.manufacturer || 'Not set')}</td></tr>`;
+                html += `<tr><td class="config-key">Model:</td><td>${editableField('home_assistant', 'model', config.home_assistant.model || 'Not set')}</td></tr>`;
+                html += `<tr><td class="config-key">Update Interval:</td><td>${editableField('home_assistant', 'update_interval', config.home_assistant.update_interval + 's')}</td></tr>`;
+                html += '</table>';
+                html += '</div>';
+            }
+
             // Web Configuration
             html += '<div class="config-section">';
             html += '<h2>Web Configuration</h2>';
@@ -1476,6 +1492,15 @@
                     user_key: 'Your Pushover user key from https://pushover.net/',
                     device: 'Send to specific device name (e.g., "iphone"), or leave as "null" for all devices',
                     priority: 'Notification priority: -2 (silent), -1 (quiet), 0 (normal), 1 (high), 2 (emergency)'
+                },
+                home_assistant: {
+                    enabled: 'true to enable Home Assistant MQTT discovery, false to disable',
+                    discovery_prefix: 'MQTT topic prefix for Home Assistant discovery (default: "homeassistant")',
+                    node_id: 'Unique identifier for this OTA service instance in Home Assistant',
+                    device_name: 'Friendly name displayed in Home Assistant UI',
+                    manufacturer: 'Manufacturer name shown in device info (optional)',
+                    model: 'Model name shown in device info (optional)',
+                    update_interval: 'Seconds between publishing sensor states to Home Assistant (default: 60). Append "s"'
                 },
                 web: {
                     port: 'Web interface port number (default: 8080)',

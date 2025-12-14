@@ -1,6 +1,7 @@
 mod config;
 mod database;
 mod firmware;
+mod home_assistant;
 mod mqtt;
 mod mqtt_client;
 mod ota_client;
