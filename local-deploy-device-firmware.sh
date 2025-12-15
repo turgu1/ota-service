@@ -1,6 +1,6 @@
 #!/bin/bash
 # ESPHome Firmware Deployment Script
-# This script deploys compiled ESPHome firmware to the OTA service firmware directory
+# This script locally deploys compiled ESPHome firmware to the OTA service firmware directory
 #
 # Usage: cd to the directory containing your ESPHome YAML file, then run:
 #        <path-to-script>/deploy-device-firmware.sh <device.yaml>

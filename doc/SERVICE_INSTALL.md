@@ -2,7 +2,7 @@
 
 Complete instructions for installing the OTA Service as a systemd service on Linux systems.
 
-*Last updated: December 12, 2025*
+*Last updated: December 14, 2025*
 
 ## Overview
 
@@ -30,10 +30,10 @@ An installation script is provided that automates all the steps described in thi
 
 ```bash
 # Make the script executable
-chmod +x install.sh
+chmod +x service-install.sh
 
 # Run the installation script
-sudo ./install.sh /path/to/ota-service
+sudo ./service-install.sh /path/to/ota-service-project
 ```
 
 The script will:
@@ -130,8 +130,8 @@ ls -l /usr/local/bin/ota-service
 sudo cp config.example.yaml /etc/ota-service/config.yaml
 
 # Set ownership and permissions
-sudo chown root:root /etc/ota-service/config.yaml
-sudo chmod 644 /etc/ota-service/config.yaml
+sudo chown ota-service:ota-service /etc/ota-service/config.yaml
+sudo chmod 640 /etc/ota-service/config.yaml
 
 # Edit configuration with your settings
 sudo nano /etc/ota-service/config.yaml

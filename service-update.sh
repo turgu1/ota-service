@@ -3,7 +3,7 @@
 # OTA Service Update Script
 # Automates updating the OTA service on a Linux server
 #
-# Usage: sudo ./update.sh /path/to/ota-service
+# Usage: sudo ./service-update.sh /path/to/ota-service-project
 #
 # This script must be run as root or with sudo
 
@@ -43,14 +43,14 @@ print_substep() {
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
     print_error "This script must be run as root or with sudo"
-    echo "Usage: sudo $0 /path/to/ota-service"
+    echo "Usage: sudo $0 /path/to/ota-service-project"
     exit 1
 fi
 
 # Check if project path is provided
 if [ -z "$1" ]; then
     print_error "Project path not provided"
-    echo "Usage: sudo $0 /path/to/ota-service"
+    echo "Usage: sudo $0 /path/to/ota-service-project"
     exit 1
 fi
 

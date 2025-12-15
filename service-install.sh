@@ -3,7 +3,7 @@
 # OTA Service Installation Script
 # Automates the installation process described in doc/SERVICE_INSTALL.md
 #
-# Usage: sudo ./install.sh /path/to/ota-service
+# Usage: sudo ./service-install.sh /path/to/ota-service-project
 #
 # This script must be run as root or with sudo
 
@@ -38,14 +38,14 @@ print_step() {
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
     print_error "This script must be run as root or with sudo"
-    echo "Usage: sudo $0 /path/to/ota-service"
+    echo "Usage: sudo $0 /path/to/ota-service-project"
     exit 1
 fi
 
 # Check if project path is provided
 if [ -z "$1" ]; then
     print_error "Project path not provided"
-    echo "Usage: sudo $0 /path/to/ota-service"
+    echo "Usage: sudo $0 /path/to/ota-service-project"
     exit 1
 fi
 
@@ -130,8 +130,8 @@ fi
 if [ -f "$PROJECT_PATH/config.example.yaml" ]; then
     print_info "Copying config.example.yaml to /etc/ota-service/config.yaml"
     cp "$PROJECT_PATH/config.example.yaml" /etc/ota-service/config.yaml
-    chown root:root /etc/ota-service/config.yaml
-    chmod 644 /etc/ota-service/config.yaml
+    chown ota-service:ota-service /etc/ota-service/config.yaml
+    chmod 640 /etc/ota-service/config.yaml
     print_info "Configuration installed successfully"
 else
     print_error "config.example.yaml not found in $PROJECT_PATH"
