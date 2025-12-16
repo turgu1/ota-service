@@ -19,7 +19,7 @@ A robust Rust-based service that automatically manages firmware updates for devi
 ✅ **Device State Tracking** - SQLite database tracks device status and update progress  
 ✅ **Authentication Support** - MD5 and SHA256 password authentication  
 ✅ **Pushover Notifications** - Real-time alerts for updates, failures, and new devices  
-✅ **Home Assistant Integration** - MQTT discovery for automatic sensor creation  
+✅ **Home Assistant Integration** - Uses the MQTT automatic discovery feature to have it's state on Home Assistant  
 ✅ **Timeout Protection** - All network operations have configurable timeouts  
 ✅ **Comprehensive Error Handling** - 13 distinct error codes with descriptive messages  
 ✅ **Concurrent Updates** - Configurable parallel firmware uploads  
