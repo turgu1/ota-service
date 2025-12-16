@@ -81,7 +81,7 @@ firmware:
   erase_firmware_after_upload: false  # Delete firmware after successful upload
 
 pushover:  # Optional push notifications
-  enabled: true
+  enabled: false
   api_token: "your_pushover_api_token"
   user_key: "your_pushover_user_key"
   device: "iphone"  # Optional: specific device name
