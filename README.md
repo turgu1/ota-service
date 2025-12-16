@@ -2,7 +2,7 @@
 
 **Over-The-Air Firmware Update Service for ESPHome Devices**
 
-*Last updated: December 12, 2025*
+*Last updated: December 15, 2025*
 
 A robust Rust-based service that automatically manages firmware updates for devices running ESPHome firmware. The service monitors for new firmware versions, coordinates updates via MQTT, and uploads firmware using the ESPHome native OTA protocol v2.
 
