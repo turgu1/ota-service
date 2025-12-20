@@ -362,14 +362,13 @@ service:
   name: "ota-service"
   log_level: "info"
   log_file_path: "/var/log/ota-service/ota-service.log"
-
-firmware:
-  storage_path: "/var/lib/ota-service/firmware"
   max_concurrent_updates: 10
-  update_timeout: 3600
   check_interval: 300  # seconds
   ota_password: null  # or "secure123"
   default_ota_port: 3232
+
+firmware:
+  storage_path: "/var/lib/ota-service/firmware"
   erase_firmware_after_upload: false
 
 pushover:

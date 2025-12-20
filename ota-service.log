@@ -1,0 +1,44 @@
+[2025-12-17 08:26:50] [INFO] [ota_service] Starting OTA Service
+[2025-12-17 08:26:50] [INFO] [ota_service] Loading configuration from: ./test-data/config.yaml
+[2025-12-17 08:26:50] [INFO] [ota_service::config] Loading configuration from: "./test-data/config.yaml"
+[2025-12-17 08:26:50] [ERROR] [ota_service] Failed to load configuration: missing configuration field "mqtt.registration_topic"
+[2025-12-17 08:28:29] [INFO] [ota_service] Starting OTA Service
+[2025-12-17 08:28:29] [INFO] [ota_service] Loading configuration from: ./test-data/config.yaml
+[2025-12-17 08:28:29] [INFO] [ota_service::config] Loading configuration from: "./test-data/config.yaml"
+[2025-12-17 08:28:29] [ERROR] [ota_service] Failed to load configuration: missing configuration field "mqtt.ota_service_topic_prefix"
+[2025-12-17 08:32:04] [INFO] [ota_service] Starting OTA Service
+[2025-12-17 08:32:04] [INFO] [ota_service] Loading configuration from: ./test-data/config.yaml
+[2025-12-17 08:32:04] [INFO] [ota_service::config] Loading configuration from: "./test-data/config.yaml"
+[2025-12-17 08:32:04] [INFO] [ota_service] Configuration loaded and validated successfully
+[2025-12-17 08:32:04] [INFO] [ota_service::service] Initializing OTA service components
+[2025-12-17 08:32:04] [INFO] [ota_service::database] Opening database at: "./test-data/devices.db"
+[2025-12-17 08:32:04] [DEBUG] [ota_service::database] Initializing database schema
+[2025-12-17 08:32:04] [DEBUG] [ota_service::database] Database schema initialized
+[2025-12-17 08:32:04] [INFO] [ota_service::service] Database initialized: ./test-data/devices.db
+[2025-12-17 08:32:04] [INFO] [ota_service::firmware] Initializing firmware manager with storage path: "/home/turgu1/Dev/ota-service/test-data/firmware"
+[2025-12-17 08:32:04] [INFO] [ota_service::service] Firmware manager initialized: /home/turgu1/Dev/ota-service/test-data/firmware
+[2025-12-17 08:32:04] [INFO] [ota_service::mqtt_client] Creating MQTT client: homeassistant.local:1883 (client_id: ota-service)
+[2025-12-17 08:32:04] [DEBUG] [ota_service::mqtt_client] MQTT credentials configured
+[2025-12-17 08:32:04] [INFO] [ota_service::service] MQTT client initialized
+[2025-12-17 08:32:04] [INFO] [ota_service::mqtt_client] Waiting for MQTT connection (max 30 attempts)
+[2025-12-17 08:32:04] [DEBUG] [ota_service::mqtt_client] Connection attempt 1/30
+[2025-12-17 08:32:05] [INFO] [ota_service::mqtt_client] MQTT connection established
+[2025-12-17 08:32:05] [INFO] [ota_service::service] Connected to MQTT broker
+[2025-12-17 08:32:05] [INFO] [ota_service::pushover] Initializing Pushover client (enabled: true)
+[2025-12-17 08:32:05] [INFO] [ota_service::service] Initializing OTA Service
+[2025-12-17 08:32:05] [INFO] [ota_service::service] Starting firmware availability check task (interval: 60 seconds)
+[2025-12-17 08:32:05] [INFO] [ota_service::service] Starting unified MQTT message listener task
+[2025-12-17 08:32:05] [INFO] [ota_service::service] OTA service is running
+[2025-12-17 08:32:05] [INFO] [ota_service::service] Unified MQTT message listener started
+[2025-12-17 08:32:05] [DEBUG] [ota_service::service] Running firmware availability check
+[2025-12-17 08:32:05] [DEBUG] [ota_service::database] Getting all devices
+[2025-12-17 08:32:05] [DEBUG] [ota_service::database] Retrieved 0 devices
+[2025-12-17 08:32:05] [DEBUG] [rumqttc::state] Subscribe. Topics = [Filter = $SYS/broker/version, Qos = AtMostOnce], Pkid = 1
+[2025-12-17 08:32:05] [DEBUG] [ota_service::database] Getting all devices
+[2025-12-17 08:32:05] [DEBUG] [ota_service::database] Retrieved 0 devices
+[2025-12-17 08:33:05] [DEBUG] [ota_service::service] Running firmware availability check
+[2025-12-17 08:33:05] [DEBUG] [ota_service::database] Getting all devices
+[2025-12-17 08:33:05] [DEBUG] [ota_service::database] Retrieved 0 devices
+[2025-12-17 08:33:05] [DEBUG] [rumqttc::state] Pingreq,
+            last incoming packet before 59958 millisecs,
+            last outgoing request before 60000 millisecs

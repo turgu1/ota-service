@@ -16,7 +16,7 @@ mqtt:
   
   # Topic where devices publish registration messages
   # REQUIRED - devices must publish to this topic to register
-  registration_topic: "ota-service/registration"
+  registration_topic: "ota-service/register"
 
 database:
   # Path to SQLite database file
@@ -34,23 +34,13 @@ service:
   
   # Path to log file (optional, null for stdout only)
   log_file_path: "/var/log/ota-service/ota-service.log"
-
-firmware:
-  # Directory where firmware binary files are stored
-  # Must be absolute path
-  # Firmware files should be named: {device_id} - {version}.bin
-  # Example: device-001 - 1.0.0.bin
-  storage_path: "/var/lib/ota-service/firmware"
   
   # Maximum number of concurrent OTA updates
   max_concurrent_updates: 10
   
-  # Timeout for OTA update in seconds
-  update_timeout: 3600
-  
   # Interval in seconds between firmware availability checks
   # Service will check for newer firmware every N seconds
-  check_interval: 300  # 5 minutes (was 60, now matches docs)
+  check_interval: 300  # 5 minutes
   
   # OTA authentication password (optional)
   # If set, all devices must use this password for OTA authentication
@@ -60,6 +50,14 @@ firmware:
   # Default OTA port number (ESPHome default: 3232)
   # Can be overridden per device in device registration
   default_ota_port: 3232
+
+
+firmware:
+  # Directory where firmware binary files are stored
+  # Must be absolute path
+  # Firmware files should be named: {device_id} - {version}.bin
+  # Example: device-001 - 1.0.0.bin
+  storage_path: "/var/lib/ota-service/firmware"
   
   # Erase firmware file after successful upload
   # Set to true to automatically delete firmware files after deployment
@@ -115,6 +113,30 @@ home_assistant:
   # Update interval in seconds for publishing sensor states
   # How often to publish device count, update status, etc. to Home Assistant
   update_interval: 60
+
+# ESPHome projects configuration (optional)
+# Configuration for managing ESPHome project directories
+# Comment out this section if not using ESPHome project management
+esphome_projects:
+  # Enable/disable ESPHome project build functionality
+  # Set to true to show ReBuild button in web interface for devices with project_folder
+  # Set to false (default) to hide build functionality
+  enable: false
+  
+  # Path to folder containing ESPHome project directories (optional)
+  # Each subdirectory should contain an ESPHome project (*.yaml files)
+  # Example: /home/user/esphome-projects containing device1/, device2/, etc.
+  # projects_folder: "/home/user/esphome-projects"
+  
+  # Default main YAML filename for ESPHome projects
+  # This is the filename that will be used when building projects
+  # Default: main.yaml
+  default_main_filename: "main.yaml"
+  
+  # Path to ESPHome virtual environment folder (optional)
+  # If specified, the esphome command will be run from this venv
+  # Example: /home/user/.venv/esphome or /opt/esphome-venv
+  # esphome_venv_folder: "/home/user/.venv/esphome"
 
 # Web interface configuration
 web:

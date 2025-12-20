@@ -47,6 +47,8 @@ impl DeviceRegistration {
             fail_count: 0,
             update_count: 0,
             rssi: self.rssi,
+            project_folder: None,
+            main_filename: None,
         }
     }
 }

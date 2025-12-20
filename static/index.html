@@ -294,9 +294,9 @@
             color: #6b7280;
         }
 
-        /* Center columns 3-10 (Firmware, State, Last Updated, RSSI, Deep Sleep, OTA Port, Updates, Failures) */
-        th:nth-child(n+4),
-        td:nth-child(n+4) {
+        /* Center columns 3+ (Firmware, State, Last Updated, Updates, Failures) */
+        th:nth-child(n+3),
+        td:nth-child(n+3) {
             text-align: center;
         }
 
@@ -363,6 +363,7 @@
             gap: 10px;
             margin-bottom: 20px;
             border-bottom: 2px solid #e5e7eb;
+            align-items: center;
         }
 
         .tab {
@@ -375,6 +376,33 @@
             font-weight: 600;
             color: #6b7280;
             transition: all 0.3s;
+        }
+
+        .add-device-btn {
+            margin-left: auto;
+            background: #10b981;
+            color: white;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 24px;
+            font-weight: 600;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            line-height: 1;
+        }
+
+        .add-device-btn.show {
+            display: flex;
+        }
+
+        .add-device-btn:hover {
+            background: #059669;
+            transform: scale(1.1);
         }
 
         .tab:hover {
@@ -613,6 +641,50 @@
         .btn-secondary:hover {
             background: #d1d5db;
         }
+
+        /* Action buttons in table */
+        .actions-cell {
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        .action-btn {
+            padding: 5px 10px;
+            margin: 0 2px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .edit-btn {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .edit-btn:hover {
+            background: #2563eb;
+        }
+
+        .build-btn {
+            background: #10b981;
+            color: white;
+        }
+
+        .build-btn:hover {
+            background: #059669;
+        }
+
+        .remove-btn {
+            background: #ef4444;
+            color: white;
+        }
+
+        .remove-btn:hover {
+            background: #dc2626;
+        }
     </style>
 </head>
 
@@ -665,6 +737,8 @@
                 <button class="tab active" onclick="switchTab('devices')">DEVICES</button>
                 <button class="tab" onclick="switchTab('log')">UPDATE LOG</button>
                 <button class="tab" onclick="switchTab('config')">CONFIG</button>
+                <button id="addDeviceBtn" class="add-device-btn" onclick="openAddDeviceModal()"
+                    title="Add New Device">+</button>
             </div>
 
             <!-- Devices Tab -->
@@ -674,35 +748,26 @@
                         <tr>
                             <th class="sortable" data-column="device_id">Device ID<div class="resize-handle"></div>
                             </th>
-                            <th class="sortable text-center" data-column="ip_address">IP Address<div
-                                    class="resize-handle"></div>
-                            </th>
-                            <th class="sortable text-center" data-column="mac_address">MAC Address<div
-                                    class="resize-handle"></div>
-                            </th>
-                            <th class="sortable" data-column="firmware_version">Firmware<div class="resize-handle">
+                            <th class="sortable text-center" data-column="ip_address">IP Addr<div class="resize-handle">
                                 </div>
+                            </th>
+                            <th class="sortable" data-column="firmware_version">Version<div class="resize-handle"></div>
                             </th>
                             <th class="sortable" data-column="state">State<div class="resize-handle"></div>
                             </th>
                             <th class="sortable" data-column="last_updated">Last Updated<div class="resize-handle">
                                 </div>
                             </th>
-                            <th class="sortable" data-column="rssi">RSSI<div class="resize-handle"></div>
-                            </th>
-                            <th>Deep Sleep<div class="resize-handle"></div>
-                            </th>
-                            <th>OTA Port<div class="resize-handle"></div>
-                            </th>
                             <th>Updates<div class="resize-handle"></div>
                             </th>
                             <th>Failures<div class="resize-handle"></div>
                             </th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="devicesBody">
                         <tr>
-                            <td colspan="11" class="no-devices">No devices registered</td>
+                            <td colspan="9" class="no-devices">No devices registered</td>
                         </tr>
                     </tbody>
                 </table>
@@ -772,6 +837,97 @@
         </div>
     </div>
 
+    <!-- Add Device Modal -->
+    <div id="addDeviceModal" class="modal">
+        <div class="modal-content">
+            <h3>Add New Device</h3>
+            <div class="modal-body">
+                <label for="newDeviceId">Device ID: <span style="color: #ef4444;">*</span></label>
+                <input type="text" id="newDeviceId" placeholder="Enter device ID" required>
+
+                <label for="newFirmwareVersion">Firmware Version:</label>
+                <input type="text" id="newFirmwareVersion" placeholder="e.g., 1.2.3">
+                <p class="modal-hint" style="margin-top: -8px; margin-bottom: 12px; font-size: 0.85em;">Format: three
+                    numbers separated by dots (e.g., 1.2.3)</p>
+
+                <label for="newProjectFolder">Project Folder:</label>
+                <input type="text" id="newProjectFolder" placeholder="Enter project folder (optional)">
+
+                <label for="newMainFilename">Main Filename:</label>
+                <input type="text" id="newMainFilename" placeholder="Enter main filename (optional)">
+                <p class="modal-hint">The device ID is mandatory. All other fields are optional.</p>
+
+                <div id="addDeviceError" class="modal-error"></div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeAddDeviceModal()" class="btn-secondary">Cancel</button>
+                <button onclick="saveNewDevice()" class="btn-primary">Add Device</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Device Modal -->
+    <div id="editDeviceModal" class="modal">
+        <div class="modal-content">
+            <h3>Edit Device</h3>
+            <div class="modal-body">
+                <label for="editDeviceId">Device ID: <span style="color: #ef4444;">*</span></label>
+                <input type="text" id="editDeviceId" placeholder="Enter device ID" required>
+                <input type="hidden" id="originalDeviceId">
+
+                <label for="editFirmwareVersion">Firmware Version:</label>
+                <input type="text" id="editFirmwareVersion" placeholder="e.g., 1.2.3">
+                <p class="modal-hint" style="margin-top: -8px; margin-bottom: 12px; font-size: 0.85em;">Format: three
+                    numbers separated by dots (e.g., 1.2.3)</p>
+
+                <label for="editProjectFolder">ESPHome Project Folder:</label>
+                <input type="text" id="editProjectFolder" placeholder="Enter ESPHome Project Folder (optional)">
+
+                <label for="editMainFilename">Main Filename:</label>
+                <input type="text" id="editMainFilename" placeholder="Enter main filename (optional)">
+                <p class="modal-hint">The device ID is mandatory. All other fields are optional.
+                    Without a Project Folder, ReBuild will need to be done by hand. If Main
+                    Filename is not set, the default from configuration will be used.</p>
+
+                <div id="editDeviceError" class="modal-error"></div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeEditDeviceModal()" class="btn-secondary">Cancel</button>
+                <button onclick="saveEditedDevice()" class="btn-primary">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rebuild Output Modal -->
+    <div id="rebuildModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <h3>Firmware Build Output</h3>
+            <div class="modal-body">
+                <div id="rebuildStatus" style="margin-bottom: 10px; font-weight: bold;"></div>
+                <pre id="rebuildOutput"
+                    style="background: #1a1a1a; color: #00ff00; padding: 15px; border-radius: 5px; max-height: 500px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 12px; white-space: pre-wrap;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeRebuildModal()" class="btn-primary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Device Details Modal -->
+    <div id="deviceDetailsModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <h3>Device Details</h3>
+            <div class="modal-body">
+                <div id="deviceDetailsContent" style="font-size: 14px;">
+                    <!-- Device details will be populated here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeDeviceDetailsModal()" class="btn-primary">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let ws = null;
         let isAuthenticated = false;
@@ -791,7 +947,7 @@
             const response = await fetch('/api/devices');
             if (response.ok) {
                 isAuthenticated = true;
-                showMainContent();
+                await showMainContent();
                 initializeColumnResizing();
                 initializeSorting();
                 applySavedColumnWidths();
@@ -814,7 +970,7 @@
 
                 if (data.success) {
                     isAuthenticated = true;
-                    showMainContent();
+                    await showMainContent();
                     connectWebSocket();
                 } else {
                     showError(data.message);
@@ -830,15 +986,30 @@
             errorDiv.style.display = 'block';
         }
 
-        function showMainContent() {
+        async function showMainContent() {
             document.getElementById('loginContainer').classList.add('hidden');
             document.getElementById('mainContent').classList.remove('hidden');
+            document.getElementById('addDeviceBtn').classList.add('show');
             initializeColumnResizing();
             initializeSorting();
             applySavedColumnWidths();
             initializeLogColumnResizing();
             initializeLogSorting();
             applySavedLogColumnWidths();
+
+            // Load config to ensure currentConfig is available for ReBuild button visibility
+            await fetchConfig();
+
+            // Refresh devices list on login
+            fetch('/api/devices')
+                .then(response => response.json())
+                .then(data => {
+                    devices = data.devices;
+                    uploadHistory = data.upload_history;
+                    updateDevicesTable(devices);
+                    updateUploadHistoryTable(uploadHistory);
+                })
+                .catch(error => console.error('Failed to fetch devices:', error));
         }
 
         async function logout() {
@@ -931,7 +1102,7 @@
             const tbody = document.getElementById('devicesBody');
 
             if (!devicesData || devicesData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="11" class="no-devices">No devices registered</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="12" class="no-devices">No devices registered</td></tr>';
                 return;
             }
 
@@ -944,18 +1115,21 @@
 
                     // Handle special cases
                     if (sortColumn === 'rssi') {
-                        aVal = parseInt(aVal);
-                        bVal = parseInt(bVal);
+                        aVal = parseInt(aVal) || 0;
+                        bVal = parseInt(bVal) || 0;
                     } else if (sortColumn === 'last_updated') {
-                        aVal = new Date(aVal).getTime();
-                        bVal = new Date(bVal).getTime();
+                        aVal = new Date(aVal || 0).getTime();
+                        bVal = new Date(bVal || 0).getTime();
                     } else if (sortColumn === 'firmware_version') {
-                        // Use semantic version comparison
+                        // Use semantic version comparison, handle null/empty values
+                        if (!aVal && !bVal) return 0;
+                        if (!aVal) return 1;  // Empty versions go to the end
+                        if (!bVal) return -1;
                         const result = compareVersions(aVal, bVal);
                         return sortDirection === 'asc' ? result : -result;
                     } else if (typeof aVal === 'string') {
                         aVal = aVal.toLowerCase();
-                        bVal = bVal.toLowerCase();
+                        bVal = bVal ? bVal.toLowerCase() : '';
                     }
 
                     if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
@@ -966,17 +1140,18 @@
 
             tbody.innerHTML = sortedDevices.map(device => `
                 <tr>
-                    <td><strong>${escapeHtml(device.device_id)}</strong></td>
+                    <td><strong><a href="#" onclick="showDeviceDetails('${escapeHtml(device.device_id)}'); return false;" style="color: #007bff; text-decoration: underline; cursor: pointer;">${escapeHtml(device.device_id)}</a></strong></td>
                     <td class="text-center">${escapeHtml(device.ip_address)}</td>
-                    <td class="text-center"><code>${escapeHtml(device.mac_address)}</code></td>
                     <td><code>${escapeHtml(device.firmware_version)}</code></td>
                     <td>${getStateBadge(device.state)}</td>
                     <td>${formatDate(device.last_updated)}</td>
-                    <td class="${getRssiClass(device.rssi)}">${device.rssi} dBm</td>
-                    <td>${device.uses_deep_sleep ? '✓ Yes' : '✗ No'}</td>
-                    <td>${device.ota_port || 'N/A'}</td>
                     <td>${device.update_count}</td>
                     <td>${device.fail_count}</td>
+                    <td class="actions-cell">
+                        ${(device.project_folder && currentConfig?.esphome_projects?.enable === true) ? `<button class="action-btn build-btn" onclick="buildDevice('${escapeHtml(device.device_id)}')" title="ReBuild firmware">ReBuild</button>` : ''}
+                        <button class="action-btn edit-btn" onclick="openEditDeviceModal('${escapeHtml(device.device_id)}', '${device.project_folder ? escapeHtml(device.project_folder) : ''}', '${device.main_filename ? escapeHtml(device.main_filename) : ''}', '${device.firmware_version ? escapeHtml(device.firmware_version) : ''}')" title="Edit device">Edit</button>
+                        <button class="action-btn remove-btn" onclick="removeDevice('${escapeHtml(device.device_id)}')" title="Remove device">Remove</button>
+                    </td>
                 </tr>
             `).join('');
         }
@@ -1181,8 +1356,11 @@
         function getStateBadge(state) {
             const stateMap = {
                 'idle': '<span class="state-badge state-idle">Idle</span>',
+                'Idle': '<span class="state-badge state-idle">Idle</span>',
                 'ota_transmit': '<span class="state-badge state-ota">OTA in Progress</span>',
-                'new_version_available_transmitted': '<span class="state-badge state-new-version">Update Available</span>'
+                'OtaTransmit': '<span class="state-badge state-ota">OTA in Progress</span>',
+                'new_version_available_transmitted': '<span class="state-badge state-new-version">Version Available</span>',
+                'NewVersionAvailableTransmitted': '<span class="state-badge state-new-version">Version Available</span>'
             };
             return stateMap[state] || state;
         }
@@ -1197,6 +1375,11 @@
             if (!dateStr) {
                 console.log('formatDate: empty dateStr');
                 return 'N/A';
+            }
+
+            // Check if date is Unix epoch (indicates never updated)
+            if (dateStr === '1970-01-01T00:00:00Z' || dateStr.startsWith('1970-01-01')) {
+                return 'Never Updated';
             }
 
             // Handle SQLite datetime format (2025-12-11 14:28:49) which is UTC
@@ -1359,6 +1542,47 @@
                         title="Click to edit">${displayValue}</span>`;
             };
 
+            // Web Configuration (FIRST - most important for access control)
+            html += '<div class="config-section">';
+            html += '<h2>Web Configuration</h2>';
+            html += '<table class="config-table">';
+            html += `<tr><td class="config-key">Port:</td><td>${editableField('web', 'port', config.web.port)}</td></tr>`;
+            html += `<tr><td class="config-key">Username:</td><td>${editableField('web', 'username', config.web.username)}</td></tr>`;
+            html += `<tr><td class="config-key">Password:</td><td>${editableField('web', 'password', config.web.password, true)}</td></tr>`;
+            html += `<tr><td class="config-key">Refresh Period:</td><td>${editableField('web', 'refresh_period', config.web.refresh_period + 's')}</td></tr>`;
+            html += `<tr><td class="config-key">Edit Session Timeout:</td><td>${editableField('web', 'edit_session_timeout', config.web.edit_session_timeout + ' min')}</td></tr>`;
+            html += '</table>';
+            html += '</div>';
+
+            // ESPHome Projects Configuration (if enabled)
+            if (config.esphome_projects) {
+                html += '<div class="config-section">';
+                html += '<h2>ESPHome Projects Configuration</h2>';
+                html += '<table class="config-table">';
+                html += `<tr><td class="config-key">Enable:</td><td>${editableField('esphome_projects', 'enable', config.esphome_projects.enable)}</td></tr>`;
+                html += `<tr><td class="config-key">Projects Folder:</td><td>${editableField('esphome_projects', 'projects_folder', config.esphome_projects.projects_folder || 'Not set')}</td></tr>`;
+                html += `<tr><td class="config-key">Default Main Filename:</td><td>${editableField('esphome_projects', 'default_main_filename', config.esphome_projects.default_main_filename)}</td></tr>`;
+                html += `<tr><td class="config-key">ESPHome Venv Folder:</td><td>${editableField('esphome_projects', 'esphome_venv_folder', config.esphome_projects.esphome_venv_folder || 'Not set')}</td></tr>`;
+                html += '</table>';
+                html += '</div>';
+            }
+
+            // Home Assistant Configuration (if enabled)
+            if (config.home_assistant) {
+                html += '<div class="config-section">';
+                html += '<h2>Home Assistant Configuration</h2>';
+                html += '<table class="config-table">';
+                html += `<tr><td class="config-key">Enabled:</td><td>${editableField('home_assistant', 'enabled', config.home_assistant.enabled)}</td></tr>`;
+                html += `<tr><td class="config-key">Discovery Prefix:</td><td>${editableField('home_assistant', 'discovery_prefix', config.home_assistant.discovery_prefix)}</td></tr>`;
+                html += `<tr><td class="config-key">Node ID:</td><td>${editableField('home_assistant', 'node_id', config.home_assistant.node_id)}</td></tr>`;
+                html += `<tr><td class="config-key">Device Name:</td><td>${editableField('home_assistant', 'device_name', config.home_assistant.device_name)}</td></tr>`;
+                html += `<tr><td class="config-key">Manufacturer:</td><td>${editableField('home_assistant', 'manufacturer', config.home_assistant.manufacturer || 'Not set')}</td></tr>`;
+                html += `<tr><td class="config-key">Model:</td><td>${editableField('home_assistant', 'model', config.home_assistant.model || 'Not set')}</td></tr>`;
+                html += `<tr><td class="config-key">Update Interval:</td><td>${editableField('home_assistant', 'update_interval', config.home_assistant.update_interval + 's')}</td></tr>`;
+                html += '</table>';
+                html += '</div>';
+            }
+
             // MQTT Configuration
             html += '<div class="config-section">';
             html += '<h2>MQTT Configuration</h2>';
@@ -1389,19 +1613,18 @@
             html += `<tr><td class="config-key">Name:</td><td>${editableField('service', 'name', config.service.name)}</td></tr>`;
             html += `<tr><td class="config-key">Log Level:</td><td>${editableField('service', 'log_level', config.service.log_level)}</td></tr>`;
             html += `<tr><td class="config-key">Log File Path:</td><td>${editableField('service', 'log_file_path', config.service.log_file_path || 'None')}</td></tr>`;
+            html += `<tr><td class="config-key">Max Concurrent Updates:</td><td>${editableField('service', 'max_concurrent_updates', config.service.max_concurrent_updates)}</td></tr>`;
+            html += `<tr><td class="config-key">Check Interval:</td><td>${editableField('service', 'check_interval', config.service.check_interval + 's')}</td></tr>`;
+            html += `<tr><td class="config-key">OTA Password:</td><td>${editableField('service', 'ota_password', config.service.ota_password || 'None', true)}</td></tr>`;
+            html += `<tr><td class="config-key">Default OTA Port:</td><td>${editableField('service', 'default_ota_port', config.service.default_ota_port)}</td></tr>`;
             html += '</table>';
             html += '</div>';
 
             // Firmware Configuration
             html += '<div class="config-section">';
-            html += '<h2>Firmware Configuration</h2>';
+            html += '<h2>Firmware Binaries Folder Configuration</h2>';
             html += '<table class="config-table">';
             html += `<tr><td class="config-key">Storage Path:</td><td>${editableField('firmware', 'storage_path', config.firmware.storage_path)}</td></tr>`;
-            html += `<tr><td class="config-key">Max Concurrent Updates:</td><td>${editableField('firmware', 'max_concurrent_updates', config.firmware.max_concurrent_updates)}</td></tr>`;
-            html += `<tr><td class="config-key">Check Interval:</td><td>${editableField('firmware', 'check_interval', config.firmware.check_interval + 's')}</td></tr>`;
-            html += `<tr><td class="config-key">Update Timeout:</td><td>${editableField('firmware', 'update_timeout', config.firmware.update_timeout + 's')}</td></tr>`;
-            html += `<tr><td class="config-key">OTA Password:</td><td>${editableField('firmware', 'ota_password', config.firmware.ota_password || 'None', true)}</td></tr>`;
-            html += `<tr><td class="config-key">Default OTA Port:</td><td>${editableField('firmware', 'default_ota_port', config.firmware.default_ota_port)}</td></tr>`;
             html += `<tr><td class="config-key">Erase Firmware After Upload:</td><td>${editableField('firmware', 'erase_firmware_after_upload', config.firmware.erase_firmware_after_upload)}</td></tr>`;
             html += '</table>';
             html += '</div>';
@@ -1419,34 +1642,6 @@
                 html += '</table>';
                 html += '</div>';
             }
-
-            // Home Assistant Configuration (if enabled)
-            if (config.home_assistant) {
-                html += '<div class="config-section">';
-                html += '<h2>Home Assistant Configuration</h2>';
-                html += '<table class="config-table">';
-                html += `<tr><td class="config-key">Enabled:</td><td>${editableField('home_assistant', 'enabled', config.home_assistant.enabled)}</td></tr>`;
-                html += `<tr><td class="config-key">Discovery Prefix:</td><td>${editableField('home_assistant', 'discovery_prefix', config.home_assistant.discovery_prefix)}</td></tr>`;
-                html += `<tr><td class="config-key">Node ID:</td><td>${editableField('home_assistant', 'node_id', config.home_assistant.node_id)}</td></tr>`;
-                html += `<tr><td class="config-key">Device Name:</td><td>${editableField('home_assistant', 'device_name', config.home_assistant.device_name)}</td></tr>`;
-                html += `<tr><td class="config-key">Manufacturer:</td><td>${editableField('home_assistant', 'manufacturer', config.home_assistant.manufacturer || 'Not set')}</td></tr>`;
-                html += `<tr><td class="config-key">Model:</td><td>${editableField('home_assistant', 'model', config.home_assistant.model || 'Not set')}</td></tr>`;
-                html += `<tr><td class="config-key">Update Interval:</td><td>${editableField('home_assistant', 'update_interval', config.home_assistant.update_interval + 's')}</td></tr>`;
-                html += '</table>';
-                html += '</div>';
-            }
-
-            // Web Configuration
-            html += '<div class="config-section">';
-            html += '<h2>Web Configuration</h2>';
-            html += '<table class="config-table">';
-            html += `<tr><td class="config-key">Port:</td><td>${editableField('web', 'port', config.web.port)}</td></tr>`;
-            html += `<tr><td class="config-key">Username:</td><td>${editableField('web', 'username', config.web.username)}</td></tr>`;
-            html += `<tr><td class="config-key">Password:</td><td>${editableField('web', 'password', config.web.password, true)}</td></tr>`;
-            html += `<tr><td class="config-key">Refresh Period:</td><td>${editableField('web', 'refresh_period', config.web.refresh_period + 's')}</td></tr>`;
-            html += `<tr><td class="config-key">Edit Session Timeout:</td><td>${editableField('web', 'edit_session_timeout', config.web.edit_session_timeout + ' min')}</td></tr>`;
-            html += '</table>';
-            html += '</div>';
 
             html += '</div>';
             content.innerHTML = html;
@@ -1475,16 +1670,15 @@
                 service: {
                     name: 'Service name identifier for logging and identification',
                     log_level: 'Logging verbosity: trace, debug, info, warn, or error',
-                    log_file_path: 'Full path to log file, or "null" for console-only logging'
+                    log_file_path: 'Full path to log file, or "null" for console-only logging',
+                    max_concurrent_updates: 'Maximum number of simultaneous OTA updates (default: 10)',
+                    check_interval: 'Seconds between firmware availability checks (e.g., 300 for 5 minutes). Append "s"',
+                    ota_password: 'Hex password for OTA authentication (must match device config), or "null" for no auth',
+                    default_ota_port: 'Default OTA port for device connections (ESPHome default: 3232)',
                 },
                 firmware: {
                     storage_path: 'Directory containing firmware binaries (format: device_id - version.bin)',
-                    max_concurrent_updates: 'Maximum number of simultaneous OTA updates (default: 10)',
-                    check_interval: 'Seconds between firmware availability checks (e.g., 300 for 5 minutes). Append "s"',
-                    update_timeout: 'Maximum seconds for OTA update to complete (default: 3600 = 1 hour). Append "s"',
-                    ota_password: 'Hex password for OTA authentication (must match device config), or "null" for no auth',
-                    default_ota_port: 'Default OTA port for device connections (ESPHome default: 3232)',
-                    erase_firmware_after_upload: 'true to delete firmware after successful upload, false to keep files'
+                    erase_firmware_after_upload: 'true to delete firmware after successful upload, false to keep files',
                 },
                 pushover: {
                     enabled: 'true to enable Pushover notifications, false to disable',
@@ -1501,6 +1695,11 @@
                     manufacturer: 'Manufacturer name shown in device info (optional)',
                     model: 'Model name shown in device info (optional)',
                     update_interval: 'Seconds between publishing sensor states to Home Assistant (default: 60). Append "s"'
+                },
+                esphome_projects: {
+                    enable: 'true to enable ESPHome project build functionality (shows ReBuild button), false to disable',
+                    projects_folder: 'Full path to directory containing ESPHome project folders (e.g., /home/user/esphome-projects)',
+                    default_main_filename: 'Default YAML filename for ESPHome projects (e.g., main.yaml, device.yaml)'
                 },
                 web: {
                     port: 'Web interface port number (default: 8080)',
@@ -1571,7 +1770,7 @@
             // Get current value
             let currentValue = currentConfig[currentEditSection][currentEditKey];
             if (typeof currentValue === 'string') {
-                if (currentValue.endsWith('s') && ['keep_alive', 'check_interval', 'update_timeout', 'refresh_period'].includes(currentEditKey)) {
+                if (currentValue.endsWith('s') && ['keep_alive', 'check_interval', 'refresh_period'].includes(currentEditKey)) {
                     currentValue = currentValue.slice(0, -1); // Remove 's' suffix
                 } else if (currentValue.endsWith(' min') && currentEditKey === 'edit_session_timeout') {
                     currentValue = currentValue.slice(0, -4); // Remove ' min' suffix
@@ -1712,6 +1911,524 @@
         });
         document.getElementById('currentPassword').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') handleModalSave();
+        });
+
+        // Add Device Modal Functions
+        async function openAddDeviceModal() {
+            // Check if authentication is needed (edit session timeout)
+            const now = Date.now();
+            const needsAuth = !editSessionTimestamp || (now - editSessionTimestamp) > editSessionTimeout * 60 * 1000;
+
+            if (needsAuth) {
+                const password = prompt('This action requires authentication. Please enter admin password:');
+                if (!password) return;
+
+                try {
+                    const response = await fetch('/api/config/validate-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password: password })
+                    });
+
+                    if (response.ok) {
+                        editSessionTimestamp = Date.now();
+                    } else {
+                        alert('Invalid password');
+                        return;
+                    }
+                } catch (error) {
+                    alert('Authentication failed: ' + error.message);
+                    return;
+                }
+            }
+
+            const modal = document.getElementById('addDeviceModal');
+            const deviceIdInput = document.getElementById('newDeviceId');
+            const firmwareVersionInput = document.getElementById('newFirmwareVersion');
+            const projectFolderInput = document.getElementById('newProjectFolder');
+            const mainFilenameInput = document.getElementById('newMainFilename');
+            const errorDiv = document.getElementById('addDeviceError');
+
+            // Clear previous values
+            deviceIdInput.value = '';
+            firmwareVersionInput.value = '';
+            projectFolderInput.value = '';
+            mainFilenameInput.value = '';
+            errorDiv.style.display = 'none';
+            errorDiv.textContent = '';
+
+            modal.style.display = 'block';
+            deviceIdInput.focus();
+        }
+
+        function closeAddDeviceModal() {
+            document.getElementById('addDeviceModal').style.display = 'none';
+        }
+
+        async function saveNewDevice() {
+            const deviceId = document.getElementById('newDeviceId').value.trim();
+            const firmwareVersion = document.getElementById('newFirmwareVersion').value.trim();
+            const projectFolder = document.getElementById('newProjectFolder').value.trim();
+            const mainFilename = document.getElementById('newMainFilename').value.trim();
+            const errorDiv = document.getElementById('addDeviceError');
+
+            // Validate device ID
+            if (!deviceId) {
+                errorDiv.textContent = 'Device ID is required';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Validate firmware version format if provided
+            if (firmwareVersion && !/^\d+\.\d+\.\d+$/.test(firmwareVersion)) {
+                errorDiv.textContent = 'Firmware version must be in format X.Y.Z (e.g., 1.2.3)';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Prepare data
+            const deviceData = {
+                device_id: deviceId,
+                firmware_version: firmwareVersion || null,
+                project_folder: projectFolder || null,
+                main_filename: mainFilename || null
+            };
+
+            try {
+                const response = await fetch('/api/devices/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(deviceData)
+                });
+
+                if (response.ok) {
+                    closeAddDeviceModal();
+                    // Refresh the devices list immediately
+                    try {
+                        const devicesResponse = await fetch('/api/devices');
+                        if (devicesResponse.ok) {
+                            const data = await devicesResponse.json();
+                            devices = data.devices;
+                            uploadHistory = data.upload_history;
+                            updateDevicesTable(devices);
+                            updateUploadHistoryTable(uploadHistory);
+                        }
+                    } catch (e) {
+                        console.error('Failed to refresh devices:', e);
+                    }
+                    alert(`Device "${deviceId}" added successfully`);
+                } else {
+                    const error = await response.json();
+                    errorDiv.textContent = error.error || 'Failed to add device';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Failed to add device: ' + error.message;
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        // Close add device modal when clicking outside
+        window.addEventListener('click', (event) => {
+            const addModal = document.getElementById('addDeviceModal');
+            if (event.target === addModal) {
+                closeAddDeviceModal();
+            }
+            const editDeviceModal = document.getElementById('editDeviceModal');
+            if (event.target === editDeviceModal) {
+                closeEditDeviceModal();
+            }
+            const rebuildModal = document.getElementById('rebuildModal');
+            if (event.target === rebuildModal) {
+                closeRebuildModal();
+            }
+            const deviceDetailsModal = document.getElementById('deviceDetailsModal');
+            if (event.target === deviceDetailsModal) {
+                closeDeviceDetailsModal();
+            }
+        });
+
+        // Handle Enter key in add device modal
+        document.getElementById('newDeviceId').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('newFirmwareVersion').focus();
+            }
+        });
+        document.getElementById('newFirmwareVersion').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('newProjectFolder').focus();
+            }
+        });
+        document.getElementById('newProjectFolder').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('newMainFilename').focus();
+            }
+        });
+        document.getElementById('newMainFilename').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveNewDevice();
+            }
+        });
+
+        // Edit Device Modal Functions
+        async function openEditDeviceModal(deviceId, projectFolder, mainFilename, firmwareVersion) {
+            // Check if authentication is needed (edit session timeout)
+            const now = Date.now();
+            const needsAuth = !editSessionTimestamp || (now - editSessionTimestamp) > editSessionTimeout * 60 * 1000;
+
+            if (needsAuth) {
+                const password = prompt('This action requires authentication. Please enter admin password:');
+                if (!password) return;
+
+                try {
+                    const response = await fetch('/api/config/validate-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password: password })
+                    });
+
+                    if (response.ok) {
+                        editSessionTimestamp = Date.now();
+                    } else {
+                        alert('Invalid password');
+                        return;
+                    }
+                } catch (error) {
+                    alert('Authentication failed: ' + error.message);
+                    return;
+                }
+            }
+
+            const modal = document.getElementById('editDeviceModal');
+            const deviceIdInput = document.getElementById('editDeviceId');
+            const firmwareVersionInput = document.getElementById('editFirmwareVersion');
+            const projectFolderInput = document.getElementById('editProjectFolder');
+            const mainFilenameInput = document.getElementById('editMainFilename');
+            const originalIdInput = document.getElementById('originalDeviceId');
+            const errorDiv = document.getElementById('editDeviceError');
+
+            // Set values
+            deviceIdInput.value = deviceId;
+            originalIdInput.value = deviceId;
+            firmwareVersionInput.value = firmwareVersion || '';
+            projectFolderInput.value = projectFolder || '';
+            mainFilenameInput.value = mainFilename || '';
+            errorDiv.style.display = 'none';
+            errorDiv.textContent = '';
+
+            modal.style.display = 'block';
+            deviceIdInput.focus();
+        }
+
+        function closeEditDeviceModal() {
+            document.getElementById('editDeviceModal').style.display = 'none';
+        }
+
+        async function saveEditedDevice() {
+            const newDeviceId = document.getElementById('editDeviceId').value.trim();
+            const originalDeviceId = document.getElementById('originalDeviceId').value;
+            const firmwareVersion = document.getElementById('editFirmwareVersion').value.trim();
+            const projectFolder = document.getElementById('editProjectFolder').value.trim();
+            const mainFilename = document.getElementById('editMainFilename').value.trim();
+            const errorDiv = document.getElementById('editDeviceError');
+
+            // Validate device ID
+            if (!newDeviceId) {
+                errorDiv.textContent = 'Device ID is required';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Validate firmware version format if provided
+            if (firmwareVersion && !/^\d+\.\d+\.\d+$/.test(firmwareVersion)) {
+                errorDiv.textContent = 'Firmware version must be in format X.Y.Z (e.g., 1.2.3)';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Prepare data
+            const deviceData = {
+                old_device_id: originalDeviceId,
+                new_device_id: newDeviceId,
+                firmware_version: firmwareVersion || null,
+                project_folder: projectFolder || null,
+                main_filename: mainFilename || null
+            };
+
+            try {
+                const response = await fetch('/api/devices/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(deviceData)
+                });
+
+                if (response.ok) {
+                    closeEditDeviceModal();
+                    // Refresh the devices list immediately
+                    try {
+                        const devicesResponse = await fetch('/api/devices');
+                        if (devicesResponse.ok) {
+                            const data = await devicesResponse.json();
+                            devices = data.devices;
+                            uploadHistory = data.upload_history;
+                            updateDevicesTable(devices);
+                            updateUploadHistoryTable(uploadHistory);
+                        }
+                    } catch (e) {
+                        console.error('Failed to refresh devices:', e);
+                    }
+                    alert(`Device "${newDeviceId}" updated successfully`);
+                } else {
+                    const error = await response.json();
+                    errorDiv.textContent = error.error || 'Failed to update device';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Failed to update device: ' + error.message;
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        // Remove Device Function
+        async function removeDevice(deviceId) {
+            // Check if authentication is needed (edit session timeout)
+            const now = Date.now();
+            const needsAuth = !editSessionTimestamp || (now - editSessionTimestamp) > editSessionTimeout * 60 * 1000;
+
+            if (needsAuth) {
+                const password = prompt('This action requires authentication. Please enter admin password:');
+                if (!password) return;
+
+                try {
+                    const response = await fetch('/api/config/validate-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password: password })
+                    });
+
+                    if (response.ok) {
+                        editSessionTimestamp = Date.now();
+                    } else {
+                        alert('Invalid password');
+                        return;
+                    }
+                } catch (error) {
+                    alert('Authentication failed: ' + error.message);
+                    return;
+                }
+            }
+
+            if (!confirm(`Are you sure you want to remove device "${deviceId}"? This action cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/devices/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_id: deviceId })
+                });
+
+                if (response.ok) {
+                    // Refresh the devices list immediately
+                    try {
+                        const devicesResponse = await fetch('/api/devices');
+                        if (devicesResponse.ok) {
+                            const data = await devicesResponse.json();
+                            devices = data.devices;
+                            uploadHistory = data.upload_history;
+                            updateDevicesTable(devices);
+                            updateUploadHistoryTable(uploadHistory);
+                        }
+                    } catch (e) {
+                        console.error('Failed to refresh devices:', e);
+                    }
+                    alert(`Device "${deviceId}" removed successfully`);
+                } else {
+                    const error = await response.json();
+                    alert(`Failed to remove device: ${error.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                alert(`Failed to remove device: ${error.message}`);
+            }
+        }
+
+        // Build Device Function
+        async function buildDevice(deviceId) {
+            // Check if authentication is needed (edit session timeout)
+            const now = Date.now();
+            const needsAuth = !editSessionTimestamp || (now - editSessionTimestamp) > editSessionTimeout * 60 * 1000;
+
+            if (needsAuth) {
+                const password = prompt('This action requires authentication. Please enter admin password:');
+                if (!password) return;
+
+                try {
+                    const response = await fetch('/api/config/validate-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password: password })
+                    });
+
+                    if (response.ok) {
+                        editSessionTimestamp = Date.now();
+                    } else {
+                        alert('Invalid password');
+                        return;
+                    }
+                } catch (error) {
+                    alert('Authentication failed: ' + error.message);
+                    return;
+                }
+            }
+
+            // Show building status
+            openRebuildModal(deviceId, 'building', 'Starting build process...\n\nPlease wait, this may take several minutes...');
+
+            try {
+                const response = await fetch('/api/devices/rebuild', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_id: deviceId })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        openRebuildModal(deviceId, 'success', result.output);
+                    } else {
+                        openRebuildModal(deviceId, 'failed', result.output);
+                    }
+                } else {
+                    const error = await response.json();
+                    openRebuildModal(deviceId, 'failed', `Error: ${error.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                openRebuildModal(deviceId, 'failed', `Failed to build firmware: ${error.message}`);
+            }
+        }
+
+        function closeRebuildModal() {
+            document.getElementById('rebuildModal').style.display = 'none';
+        }
+
+        function showDeviceDetails(deviceId) {
+            // Find the device in devices
+            const device = devices.find(d => d.device_id === deviceId);
+            if (!device) {
+                alert('Device not found');
+                return;
+            }
+
+            const modal = document.getElementById('deviceDetailsModal');
+            const content = document.getElementById('deviceDetailsContent');
+
+            // Build the details display
+            const details = `
+                <div style="display: grid; grid-template-columns: 180px 1fr; gap: 12px; line-height: 1.8;">
+                    <div style="font-weight: bold; color: #6b7280;">Device ID:</div>
+                    <div><code>${escapeHtml(device.device_id)}</code></div>
+
+                    <div style="font-weight: bold; color: #6b7280;">IP Address:</div>
+                    <div>${escapeHtml(device.ip_address)}</div>
+
+                    <div style="font-weight: bold; color: #6b7280;">MAC Address:</div>
+                    <div><code>${escapeHtml(device.mac_address)}</code></div>
+
+                    <div style="font-weight: bold; color: #6b7280;">Firmware Version:</div>
+                    <div><code>${escapeHtml(device.firmware_version)}</code></div>
+
+                    <div style="font-weight: bold; color: #6b7280;">State:</div>
+                    <div>${getStateBadge(device.state)}</div>
+
+                    <div style="font-weight: bold; color: #6b7280;">Last Updated:</div>
+                    <div>${formatDate(device.last_updated)}</div>
+
+                    <div style="font-weight: bold; color: #6b7280;">RSSI:</div>
+                    <div class="${getRssiClass(device.rssi)}" style="font-weight: bold;">${device.rssi} dBm</div>
+
+                    <div style="font-weight: bold; color: #6b7280;">Deep Sleep:</div>
+                    <div>${device.uses_deep_sleep ? '✓ Yes' : '✗ No'}</div>
+
+                    <div style="font-weight: bold; color: #6b7280;">OTA Port:</div>
+                    <div>${device.ota_port || '<em style="color: #9ca3af;">Default (3232)</em>'}</div>
+
+                    <div style="font-weight: bold; color: #6b7280;">OTA Readiness Topic:</div>
+                    <div><code style="font-size: 12px;">${escapeHtml(device.ota_readiness_topic)}</code></div>
+
+                    <div style="font-weight: bold; color: #6b7280;">OTA Mode Topic:</div>
+                    <div><code style="font-size: 12px;">${escapeHtml(device.ota_mode_topic)}</code></div>
+
+                    <div style="font-weight: bold; color: #6b7280;">Project Folder:</div>
+                    <div>${device.project_folder ? escapeHtml(device.project_folder) : '<em style="color: #9ca3af;">Not set</em>'}</div>
+
+                    <div style="font-weight: bold; color: #6b7280;">Main Filename:</div>
+                    <div>${device.main_filename ? escapeHtml(device.main_filename) : '<em style="color: #9ca3af;">Not set</em>'}</div>
+
+                    <div style="font-weight: bold; color: #6b7280;">Successful Updates:</div>
+                    <div>${device.update_count}</div>
+
+                    <div style="font-weight: bold; color: #6b7280;">Failed Updates:</div>
+                    <div>${device.fail_count}</div>
+                </div>
+            `;
+
+            content.innerHTML = details;
+            modal.style.display = 'block';
+        }
+
+        function closeDeviceDetailsModal() {
+            document.getElementById('deviceDetailsModal').style.display = 'none';
+        }
+
+        function openRebuildModal(deviceId, status, output) {
+            const modal = document.getElementById('rebuildModal');
+            const statusDiv = document.getElementById('rebuildStatus');
+            const outputPre = document.getElementById('rebuildOutput');
+
+            if (status === 'success') {
+                statusDiv.textContent = `✓ Build completed successfully for device: ${deviceId}`;
+                statusDiv.style.color = '#10b981';
+            } else if (status === 'building') {
+                statusDiv.textContent = `⟳ Building firmware for device: ${deviceId}...`;
+                statusDiv.style.color = '#3b82f6';
+            } else {
+                statusDiv.textContent = `✗ Build failed for device: ${deviceId}`;
+                statusDiv.style.color = '#ef4444';
+            }
+
+            outputPre.textContent = output || 'No output available';
+            modal.style.display = 'block';
+        }
+
+        // Handle Enter key in edit device modal
+        document.getElementById('editDeviceId').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('editFirmwareVersion').focus();
+            }
+        });
+        document.getElementById('editFirmwareVersion').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('editProjectFolder').focus();
+            }
+        });
+        document.getElementById('editProjectFolder').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('editMainFilename').focus();
+            }
+        });
+        document.getElementById('editMainFilename').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveEditedDevice();
+            }
         });
     </script>
 </body>

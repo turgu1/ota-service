@@ -150,10 +150,10 @@ database:
 
 service:
   log_file_path: "/var/log/ota-service/ota-service.log"
+  ota_password: "your_ota_password_hex"  # Update if using OTA auth
 
 firmware:
   storage_path: "/var/lib/ota-service/firmware"
-  ota_password: "your_ota_password_hex"  # Update if using OTA auth
 
 web:
   port: 8080

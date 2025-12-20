@@ -20,6 +20,9 @@ pub struct Configuration {
     /// Home Assistant MQTT discovery configuration (optional)
     #[serde(default)]
     pub home_assistant: Option<HomeAssistantConfig>,
+    /// ESPHome projects configuration (optional)
+    #[serde(default)]
+    pub esphome_projects: Option<EsphomeProjectsConfig>,
     /// Web interface configuration
     pub web: WebConfig,
 }
@@ -62,6 +65,16 @@ pub struct ServiceConfig {
     /// Path to log file (optional)
     #[serde(default)]
     pub log_file_path: Option<String>,
+    /// Maximum number of concurrent OTA updates
+    pub max_concurrent_updates: u32,
+    /// Update timeout in seconds
+    /// Interval in seconds between firmware availability checks
+    pub check_interval: u64,
+    /// OTA authentication password (same for all devices)
+    pub ota_password: Option<String>,
+    /// Default OTA port number (can be overridden per device)
+    #[serde(default = "default_ota_port")]
+    pub default_ota_port: u16,
 }
 
 /// Pushover notification configuration
@@ -89,6 +102,25 @@ fn default_enabled() -> bool {
     true
 }
 
+/// ESPHome projects configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EsphomeProjectsConfig {
+    /// Enable/disable ESPHome project build functionality
+    #[serde(default)]
+    pub enable: bool,
+    /// Path to folder containing ESPHome project directories (optional)
+    pub projects_folder: Option<String>,
+    /// Default main YAML filename for ESPHome projects
+    #[serde(default = "default_main_filename")]
+    pub default_main_filename: String,
+    /// Path to ESPHome virtual environment folder (optional)
+    pub esphome_venv_folder: Option<String>,
+}
+
+fn default_main_filename() -> String {
+    "main.yaml".to_string()
+}
+
 /// Web interface configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebConfig {
@@ -109,17 +141,7 @@ pub struct WebConfig {
 pub struct FirmwareConfig {
     /// Directory where firmware files are stored
     pub storage_path: String,
-    /// Maximum concurrent OTA updates
-    pub max_concurrent_updates: u32,
-    /// Update timeout in seconds
-    pub update_timeout: u64,
-    /// Interval in seconds between firmware availability checks
-    pub check_interval: u64,
-    /// OTA authentication password (same for all devices)
-    pub ota_password: Option<String>,
-    /// Default OTA port number (can be overridden per device)
-    #[serde(default = "default_ota_port")]
-    pub default_ota_port: u16,
+
     /// Erase firmware file after successful upload
     #[serde(default = "default_erase_firmware")]
     pub erase_firmware_after_upload: bool,
@@ -220,17 +242,12 @@ impl Configuration {
             log::error!("{}", err);
             return Err(err);
         }
-        if self.firmware.max_concurrent_updates == 0 {
+        if self.service.max_concurrent_updates == 0 {
             let err = "Max concurrent updates must be greater than 0".to_string();
             log::error!("{}", err);
             return Err(err);
         }
-        if self.firmware.update_timeout == 0 {
-            let err = "Update timeout must be greater than 0".to_string();
-            log::error!("{}", err);
-            return Err(err);
-        }
-        if self.firmware.check_interval == 0 {
+        if self.service.check_interval == 0 {
             let err = "Check interval must be greater than 0".to_string();
             log::error!("{}", err);
             return Err(err);
@@ -324,18 +341,18 @@ mod tests {
                 name: "test".to_string(),
                 log_level: "info".to_string(),
                 log_file_path: None,
-            },
-            firmware: FirmwareConfig {
-                storage_path: "/tmp".to_string(),
                 max_concurrent_updates: 5,
-                update_timeout: 300,
                 check_interval: 60,
                 ota_password: None,
                 default_ota_port: 3232,
+            },
+            firmware: FirmwareConfig {
+                storage_path: "/tmp".to_string(),
                 erase_firmware_after_upload: false,
             },
             pushover: None,
             home_assistant: None,
+            esphome_projects: None,
             web: WebConfig {
                 port: 8080,
                 username: "admin".to_string(),

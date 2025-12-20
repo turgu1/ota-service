@@ -2,7 +2,7 @@
 
 **Over-The-Air Firmware Update Service for ESPHome Devices**
 
-*Last updated: December 15, 2025*
+*Last updated: December 20, 2025*
 
 A robust Rust-based service that automatically manages firmware updates for devices running ESPHome firmware. The service monitors for new firmware versions, coordinates updates via MQTT, and uploads firmware using the ESPHome native OTA protocol v2.
 
@@ -19,7 +19,7 @@ A robust Rust-based service that automatically manages firmware updates for devi
 ✅ **Device State Tracking** - SQLite database tracks device status and update progress  
 ✅ **Authentication Support** - MD5 and SHA256 password authentication  
 ✅ **Pushover Notifications** - Real-time alerts for updates, failures, and new devices  
-✅ **Home Assistant Integration** - Uses the MQTT automatic discovery feature to have it's state on Home Assistant  
+✅ **Home Assistant Integration** - Uses the MQTT automatic discovery feature to have it's basic state on Home Assistant  
 ✅ **Timeout Protection** - All network operations have configurable timeouts  
 ✅ **Comprehensive Error Handling** - 13 distinct error codes with descriptive messages  
 ✅ **Concurrent Updates** - Configurable parallel firmware uploads  
@@ -70,14 +70,13 @@ service:
   name: "ota-service"
   log_level: "info"
   log_file_path: "/var/log/ota-service/ota-service.log"
-
-firmware:
-  storage_path: "/var/lib/ota-service/firmware"
   max_concurrent_updates: 10
-  update_timeout: 3600
   check_interval: 300  # 5 minutes
   ota_password: "your_hex_password"  # Optional OTA authentication
   default_ota_port: 3232  # Default OTA port (devices can override)
+
+firmware:
+  storage_path: "/var/lib/ota-service/firmware"
   erase_firmware_after_upload: false  # Delete firmware after successful upload
 
 pushover:  # Optional push notifications
@@ -96,6 +95,12 @@ home_assistant:  # Optional Home Assistant MQTT discovery
   model: "Firmware Update Manager"
   update_interval: 60  # seconds
 
+esphome_projects:  # Optional ESPHome firmware rebuild capability
+  enabled: false
+  projects_folder: "/path/to/esphome/projects"  # Optional: base folder for projects
+  default_main_filename: "main.yaml"  # Default YAML filename
+  esphome_venv_folder: "/path/to/.esphome/venv"  # Optional: ESPHome virtual environment
+
 web:
   port: 8080
   username: "admin"
@@ -106,6 +111,7 @@ web:
 
 **Configuration Notes:**
 - `erase_firmware_after_upload`: When set to `true`, the uploaded firmware file and all older versions for the same device are automatically deleted after successful upload. This helps manage disk space when deploying firmware to multiple devices. Set to `false` (default) to keep firmware files for reuse or rollback purposes.
+- `esphome_projects.enable`: When set to `true`, enables the ReBuild button in the web interface for devices with a configured project folder. This allows rebuilding firmware directly through the ESPHome CLI without manual command-line operations. Requires ESPHome to be installed and accessible.
 
 ### Running the Service
 
@@ -124,6 +130,9 @@ sudo systemctl start ota-service
 The OTA Service includes a comprehensive web-based monitoring and management interface for:
 
 - **Real-time device monitoring** - WebSocket-based live updates of all registered devices
+- **Device management** - Add, edit, and remove devices with modal dialogs
+- **Device details** - Click on device name or ID to view complete device information in a modal window
+- **ESPHome firmware rebuild** - Rebuild device firmware directly from the web interface (when enabled)
 - **Firmware update history** - Track all upload attempts with success/failure status
 - **Configuration management** - View and edit service configuration through the web UI
 - **Service restart** - Restart the service directly from the interface
@@ -148,8 +157,15 @@ The OTA Service includes a comprehensive web-based monitoring and management int
 
 **Devices Tab:**
 - Live device table with auto-refresh
-- Sortable and resizable columns
-- Color-coded status indicators (Idle, OTA in Progress, Update Available)
+- Sortable and resizable columns including device name
+- Color-coded status indicators (Idle, OTA in Progress, Version Available)
+- Clickable device names and IDs to view detailed information in modal window
+- Device management buttons:
+  - **Add Device** - Manually add new devices with optional ESPHome project configuration
+  - **Edit** - Modify device settings (ID, name, project folder, firmware version)
+  - **ReBuild** - Compile and deploy firmware using ESPHome (when esphome_projects enabled)
+  - **Remove** - Delete devices from the database
+- Device details modal showing all device information (IP, MAC, topics, statistics, etc.)
 - WiFi signal strength (RSSI) with visual indicators
 - Firmware version with semantic sorting
 

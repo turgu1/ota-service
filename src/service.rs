@@ -143,8 +143,8 @@ pub async fn run(config: Configuration, config_path: String) -> Result<(), Strin
         mqtt_publisher,
         mqtt_subscriber,
         config.mqtt.registration_topic.clone(),
-        config.firmware.ota_password.clone(),
-        config.firmware.default_ota_port,
+        config.service.ota_password.clone(),
+        config.service.default_ota_port,
         config.firmware.erase_firmware_after_upload,
         pushover_client,
         Arc::clone(&success_count),
@@ -153,7 +153,7 @@ pub async fn run(config: Configuration, config_path: String) -> Result<(), Strin
 
     // Start firmware check task
     service
-        .start_firmware_check_task(config.firmware.check_interval)
+        .start_firmware_check_task(config.service.check_interval)
         .await;
 
     // Start unified MQTT listener

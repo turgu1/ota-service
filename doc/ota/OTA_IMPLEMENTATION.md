@@ -86,10 +86,11 @@ pub struct PushoverConfig {
     pub enabled: bool,
 }
 ```
-
-Added to `FirmwareConfig`:
+Added to `ServiceConfig`:
 - `ota_password: Option<String>` - Hex password for OTA authentication
 - `default_ota_port: u16` - Default OTA port (devices can override with custom port)
+
+Added to `FirmwareConfig`:
 - `erase_firmware_after_upload: bool` - Automatically delete firmware file and all older versions after successful upload (default: false)
 
 ### 6. **Dependencies Added to `Cargo.toml`**
@@ -258,12 +259,13 @@ for (device_id, device_ip) in device_list {
 ### Complete config.yaml Example
 
 ```yaml
-firmware:
-  storage_path: "/var/lib/ota-service/firmware"
+service:
   max_concurrent_updates: 10
-  update_timeout: 3600
   check_interval: 300  # 5 minutes
   ota_password: "deadbeef1234"  # Hex string for OTA authentication
+
+firmware:
+  storage_path: "/var/lib/ota-service/firmware"
 
 pushover:                        # Optional
   enabled: true
@@ -356,7 +358,7 @@ journalctl -u ota-service -f
 - **Typical Upload Time**: 5-30 seconds depending on firmware size and network
 - **Firmware Size Range**: 500KB - 2MB typical
 - **Chunk Size**: 4KB (optimized for balance)
-- **Concurrent Uploads**: Limited by config `max_concurrent_updates`
+- **Concurrent Uploads**: Limited by service config `max_concurrent_updates`
 - **Memory Usage**: Minimal (streams data in chunks)
 
 ## Security Considerations

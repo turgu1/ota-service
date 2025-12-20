@@ -267,7 +267,7 @@ See OTA_PROTOCOL.md for complete list of 13 error codes.
 
 1. **Chunk size**: 1024 bytes with ACKs every 8192 bytes (protocol v2)
 2. **Timeout**: Default 30s on all operations, increase for slow networks
-3. **Concurrent updates**: Limited by config `max_concurrent_updates`
+3. **Concurrent updates**: Limited by service config `max_concurrent_updates`
 4. **Check interval**: Balance between battery life (sleepy devices) and update latency
 5. **Pushover**: Enable notifications to get immediate feedback on success/failure
 

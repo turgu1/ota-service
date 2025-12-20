@@ -15,7 +15,7 @@ use tokio::sync::Mutex;
 use tower_sessions::{Expiry, MemoryStore, Session, SessionManagerLayer};
 
 use crate::{
-    config::{Configuration, WebConfig},
+    config::Configuration,
     database::{Database, Device, UploadHistoryEntry},
 };
 
@@ -59,6 +59,45 @@ pub struct ConfigUpdateRequest {
     admin_password: Option<String>,
 }
 
+/// Add device request
+#[derive(Debug, Deserialize)]
+pub struct AddDeviceRequest {
+    device_id: String,
+    firmware_version: Option<String>,
+    project_folder: Option<String>,
+    main_filename: Option<String>,
+}
+
+/// Update device request
+#[derive(Debug, Deserialize)]
+pub struct UpdateDeviceRequest {
+    old_device_id: String,
+    new_device_id: String,
+    project_folder: Option<String>,
+    main_filename: Option<String>,
+    firmware_version: Option<String>,
+}
+
+/// Remove device request
+#[derive(Debug, Deserialize)]
+pub struct RemoveDeviceRequest {
+    device_id: String,
+}
+
+/// Rebuild device firmware request
+#[derive(Debug, Deserialize)]
+pub struct RebuildDeviceRequest {
+    device_id: String,
+}
+
+/// Rebuild response
+#[derive(Debug, Serialize)]
+pub struct RebuildResponse {
+    success: bool,
+    output: String,
+    firmware_path: Option<String>,
+}
+
 /// Generic error response
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
@@ -81,6 +120,7 @@ pub struct ConfigResponse {
     firmware: MaskedFirmwareConfig,
     pushover: Option<MaskedPushoverConfig>,
     home_assistant: Option<HomeAssistantConfigView>,
+    esphome_projects: Option<EsphomeProjectsConfigView>,
     web: MaskedWebConfig,
 }
 
@@ -106,16 +146,15 @@ pub struct ServiceConfigView {
     pub name: String,
     pub log_level: String,
     pub log_file_path: Option<String>,
+    pub max_concurrent_updates: u32,
+    pub check_interval: u64,
+    pub ota_password: Option<String>,
+    pub default_ota_port: u16,
 }
 
 #[derive(Debug, Serialize)]
 pub struct MaskedFirmwareConfig {
     pub storage_path: String,
-    pub max_concurrent_updates: u32,
-    pub update_timeout: u64,
-    pub check_interval: u64,
-    pub ota_password: Option<String>,
-    pub default_ota_port: u16,
     pub erase_firmware_after_upload: bool,
 }
 
@@ -140,6 +179,14 @@ pub struct HomeAssistantConfigView {
 }
 
 #[derive(Debug, Serialize)]
+pub struct EsphomeProjectsConfigView {
+    pub enable: bool,
+    pub projects_folder: Option<String>,
+    pub default_main_filename: String,
+    pub esphome_venv_folder: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
 pub struct MaskedWebConfig {
     pub port: u16,
     pub username: String,
@@ -161,6 +208,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/login", post(login_handler))
         .route("/logout", post(logout_handler))
         .route("/api/devices", get(devices_handler))
+        .route("/api/devices/add", post(add_device_handler))
+        .route("/api/devices/update", post(update_device_handler))
+        .route("/api/devices/remove", post(remove_device_handler))
+        .route("/api/devices/rebuild", post(rebuild_device_handler))
         .route("/api/config", get(config_handler))
         .route(
             "/api/config/validate-password",
@@ -267,6 +318,706 @@ async fn devices_handler(State(state): State<AppState>, session: Session) -> Res
     .into_response()
 }
 
+/// Add a new device (requires authentication)
+async fn add_device_handler(
+    State(state): State<AppState>,
+    session: Session,
+    Json(request): Json<AddDeviceRequest>,
+) -> Response {
+    if !is_authenticated(&session).await {
+        return (StatusCode::UNAUTHORIZED, "Not authenticated").into_response();
+    }
+
+    // Validate device_id
+    let device_id = request.device_id.trim();
+    if device_id.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "Device ID cannot be empty".to_string(),
+            }),
+        )
+            .into_response();
+    }
+
+    let mut db = state.database.lock().await;
+
+    // Check if device already exists
+    if let Ok(Some(_)) = db.get_device(device_id) {
+        return (
+            StatusCode::CONFLICT,
+            Json(ErrorResponse {
+                error: format!("Device '{}' already exists", device_id),
+            }),
+        )
+            .into_response();
+    }
+
+    // Create a new device with minimal information
+    let device = Device {
+        device_id: device_id.to_string(),
+        ip_address: String::new(),
+        mac_address: String::new(),
+        firmware_version: request
+            .firmware_version
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_default(),
+        last_updated: "1970-01-01T00:00:00Z".to_string(), // Unix epoch - indicates never updated
+        ota_readiness_topic: String::new(),
+        ota_mode_topic: String::new(),
+        uses_deep_sleep: false,
+        ota_port: None,
+        state: crate::database::DeviceState::Idle,
+        fail_count: 0,
+        update_count: 0,
+        rssi: 0,
+        project_folder: request.project_folder.filter(|s| !s.trim().is_empty()),
+        main_filename: request.main_filename.filter(|s| !s.trim().is_empty()),
+    };
+
+    match db.upsert_device(&device) {
+        Ok(_) => {
+            info!("Device '{}' added via web interface", device_id);
+            (StatusCode::OK, Json(device)).into_response()
+        }
+        Err(e) => {
+            error!("Failed to add device '{}': {}", device_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to add device: {}", e),
+                }),
+            )
+                .into_response()
+        }
+    }
+}
+
+/// Update a device (requires authentication)
+async fn update_device_handler(
+    State(state): State<AppState>,
+    session: Session,
+    Json(request): Json<UpdateDeviceRequest>,
+) -> Response {
+    if !is_authenticated(&session).await {
+        return (StatusCode::UNAUTHORIZED, "Not authenticated").into_response();
+    }
+
+    // Validate device IDs
+    let old_device_id = request.old_device_id.trim();
+    let new_device_id = request.new_device_id.trim();
+
+    if old_device_id.is_empty() || new_device_id.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "Device IDs cannot be empty".to_string(),
+            }),
+        )
+            .into_response();
+    }
+
+    let mut db = state.database.lock().await;
+
+    // Get the existing device
+    let mut device = match db.get_device(old_device_id) {
+        Ok(Some(d)) => d,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: format!("Device '{}' not found", old_device_id),
+                }),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            error!("Failed to get device '{}': {}", old_device_id, e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to get device: {}", e),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    // If device ID changed, check if new ID already exists
+    if old_device_id != new_device_id {
+        if let Ok(Some(_)) = db.get_device(new_device_id) {
+            return (
+                StatusCode::CONFLICT,
+                Json(ErrorResponse {
+                    error: format!("Device '{}' already exists", new_device_id),
+                }),
+            )
+                .into_response();
+        }
+
+        // Delete old device
+        match db.delete_device(old_device_id) {
+            Ok(_) => {
+                info!("Old device '{}' deleted for rename", old_device_id);
+            }
+            Err(e) => {
+                error!("Failed to delete old device '{}': {}", old_device_id, e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: format!("Failed to delete old device: {}", e),
+                    }),
+                )
+                    .into_response();
+            }
+        }
+    }
+
+    // Update device fields
+    device.device_id = new_device_id.to_string();
+    device.project_folder = request.project_folder.filter(|s| !s.trim().is_empty());
+    device.main_filename = request.main_filename.filter(|s| !s.trim().is_empty());
+    if let Some(firmware_version) = request.firmware_version.filter(|s| !s.trim().is_empty()) {
+        device.firmware_version = firmware_version;
+    }
+    // Note: last_updated is not changed here - only updated on successful firmware upload
+
+    // Save updated device
+    match db.upsert_device(&device) {
+        Ok(_) => {
+            info!("Device '{}' updated via web interface", new_device_id);
+            (StatusCode::OK, Json(device)).into_response()
+        }
+        Err(e) => {
+            error!("Failed to update device '{}': {}", new_device_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to update device: {}", e),
+                }),
+            )
+                .into_response()
+        }
+    }
+}
+
+/// Remove a device (requires authentication)
+async fn remove_device_handler(
+    State(state): State<AppState>,
+    session: Session,
+    Json(request): Json<RemoveDeviceRequest>,
+) -> Response {
+    if !is_authenticated(&session).await {
+        return (StatusCode::UNAUTHORIZED, "Not authenticated").into_response();
+    }
+
+    let device_id = request.device_id.trim();
+
+    if device_id.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "Device ID cannot be empty".to_string(),
+            }),
+        )
+            .into_response();
+    }
+
+    let mut db = state.database.lock().await;
+
+    // Check if device exists
+    if db.get_device(device_id).ok().flatten().is_none() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: format!("Device '{}' not found", device_id),
+            }),
+        )
+            .into_response();
+    }
+
+    // Delete the device
+    match db.delete_device(device_id) {
+        Ok(_) => {
+            info!("Device '{}' removed via web interface", device_id);
+            (StatusCode::OK, Json(serde_json::json!({ "success": true }))).into_response()
+        }
+        Err(e) => {
+            error!("Failed to remove device '{}': {}", device_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to remove device: {}", e),
+                }),
+            )
+                .into_response()
+        }
+    }
+}
+
+/// Parse version string in X.Y.Z format into tuple of integers for comparison
+fn parse_version(version: &str) -> Result<(u32, u32, u32), String> {
+    let parts: Vec<&str> = version.split('.').collect();
+    if parts.len() != 3 {
+        return Err(format!("Invalid version format: {}", version));
+    }
+
+    let major = parts[0]
+        .parse::<u32>()
+        .map_err(|_| format!("Invalid major version: {}", parts[0]))?;
+    let minor = parts[1]
+        .parse::<u32>()
+        .map_err(|_| format!("Invalid minor version: {}", parts[1]))?;
+    let patch = parts[2]
+        .parse::<u32>()
+        .map_err(|_| format!("Invalid patch version: {}", parts[2]))?;
+
+    Ok((major, minor, patch))
+}
+
+/// Rebuild device firmware (requires authentication)
+async fn rebuild_device_handler(
+    State(state): State<AppState>,
+    session: Session,
+    Json(request): Json<RebuildDeviceRequest>,
+) -> Response {
+    use std::path::PathBuf;
+    use tokio::process::Command;
+
+    if !is_authenticated(&session).await {
+        return (StatusCode::UNAUTHORIZED, "Not authenticated").into_response();
+    }
+
+    let device_id = request.device_id.trim();
+
+    // Get device from database
+    let db = state.database.lock().await;
+    let device = match db.get_device(device_id) {
+        Ok(Some(d)) => d,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: format!("Device '{}' not found", device_id),
+                }),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            error!("Failed to get device '{}': {}", device_id, e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to get device: {}", e),
+                }),
+            )
+                .into_response();
+        }
+    };
+    drop(db);
+
+    // Check if device has project_folder
+    let project_folder = match &device.project_folder {
+        Some(pf) if !pf.is_empty() => pf,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    error: "Device has no project_folder configured".to_string(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    // Check if esphome_projects is enabled
+    let esphome_config = match &state.config.esphome_projects {
+        Some(cfg) if cfg.enable => cfg,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    error: "ESPHome projects functionality is not enabled".to_string(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    // Get projects folder
+    let projects_folder = match &esphome_config.projects_folder {
+        Some(pf) if !pf.is_empty() => pf,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    error: "ESPHome projects_folder is not configured".to_string(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    // Build full project path
+    let mut project_path = PathBuf::from(projects_folder);
+    project_path.push(project_folder);
+
+    if !project_path.exists() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: format!("Project directory not found: {}", project_path.display()),
+            }),
+        )
+            .into_response();
+    }
+
+    // Determine main filename
+    let main_filename = device
+        .main_filename
+        .as_ref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&esphome_config.default_main_filename);
+
+    let yaml_path = project_path.join(main_filename);
+    if !yaml_path.exists() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: format!("ESPHome YAML file not found: {}", yaml_path.display()),
+            }),
+        )
+            .into_response();
+    }
+
+    // Parse and validate the YAML file
+    let yaml_content = match tokio::fs::read_to_string(&yaml_path).await {
+        Ok(content) => content,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to read YAML file: {}", e),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    let yaml_data: serde_yml::Value = match serde_yml::from_str(&yaml_content) {
+        Ok(data) => data,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    error: format!("Failed to parse YAML file: {}", e),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    // Extract version from YAML (check project.version or substitutions.firmware_version)
+    let yaml_version_raw = yaml_data
+        .get("project")
+        .and_then(|p| p.get("version"))
+        .and_then(|v| v.as_str())
+        .or_else(|| {
+            yaml_data
+                .get("substitutions")
+                .and_then(|s| s.get("firmware_version"))
+                .and_then(|v| v.as_str())
+        });
+
+    // Resolve substitutions in version string if present
+    let yaml_version = if let Some(version_str) = yaml_version_raw {
+        if version_str.contains("${") && version_str.contains("}") {
+            // Handle substitution in version string
+            let mut resolved_version = version_str.to_string();
+
+            // Find all ${...} patterns and replace them
+            while let Some(start) = resolved_version.find("${") {
+                if let Some(end) = resolved_version[start..].find("}") {
+                    let var_name = &resolved_version[start + 2..start + end];
+
+                    // Look up the variable in substitutions
+                    let substituted_value = yaml_data
+                        .get("substitutions")
+                        .and_then(|s| s.get(var_name))
+                        .and_then(|v| v.as_str());
+
+                    match substituted_value {
+                        Some(value) => {
+                            resolved_version =
+                                resolved_version.replace(&format!("${{{}}}", var_name), value);
+                        }
+                        None => {
+                            return (
+                                StatusCode::BAD_REQUEST,
+                                Json(ErrorResponse {
+                                    error: format!(
+                                        "Version string references undefined substitution variable '{}'. Please define it in the substitutions section.",
+                                        var_name
+                                    ),
+                                }),
+                            )
+                                .into_response();
+                        }
+                    }
+                } else {
+                    break;
+                }
+            }
+            Some(resolved_version)
+        } else {
+            Some(version_str.to_string())
+        }
+    } else {
+        None
+    };
+
+    // Extract esphome.name field - this is required to locate the compiled firmware
+    let esphome_name_raw = yaml_data
+        .get("esphome")
+        .and_then(|e| e.get("name"))
+        .and_then(|n| n.as_str());
+
+    let esphome_name = match esphome_name_raw {
+        Some(name) => {
+            // Check if the name contains ${...} substitution syntax
+            if name.contains("${") && name.contains("}") {
+                // Extract the variable name from ${variable_name}
+                let start = name.find("${").unwrap() + 2;
+                let end = name.find("}").unwrap();
+                let var_name = &name[start..end];
+
+                // Look up the variable in substitutions
+                let substituted_value = yaml_data
+                    .get("substitutions")
+                    .and_then(|s| s.get(var_name))
+                    .and_then(|v| v.as_str());
+
+                match substituted_value {
+                    Some(value) => {
+                        // Replace ${variable_name} with the actual value
+                        name.replace(&format!("${{{}}}", var_name), value)
+                    }
+                    None => {
+                        return (
+                            StatusCode::BAD_REQUEST,
+                            Json(ErrorResponse {
+                                error: format!(
+                                    "ESPHome name references undefined substitution variable '{}'. Please define it in the substitutions section.",
+                                    var_name
+                                ),
+                            }),
+                        )
+                            .into_response();
+                    }
+                }
+            } else {
+                name.to_string()
+            }
+        }
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    error: "No 'esphome.name' field found in YAML file. This field is required to locate the compiled firmware.".to_string(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    // Validate version is greater than current version
+    if let Some(yaml_ver) = &yaml_version {
+        let current_version = &device.firmware_version;
+        if !current_version.is_empty() {
+            // Compare versions (simple string comparison for X.Y.Z format)
+            if let (Ok(yaml_parts), Ok(current_parts)) =
+                (parse_version(yaml_ver), parse_version(current_version))
+            {
+                if yaml_parts <= current_parts {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(ErrorResponse {
+                            error: format!(
+                                "Version validation failed: YAML version '{}' must be greater than current version '{}'. Please update the version in your ESPHome YAML configuration.",
+                                yaml_ver, current_version
+                            ),
+                        }),
+                    )
+                        .into_response();
+                }
+            }
+        }
+    }
+
+    info!(
+        "Building firmware for device '{}' from project: {}",
+        device_id,
+        project_path.display()
+    );
+
+    // Build the esphome command, optionally with venv activation
+    let output = if let Some(venv_folder) = &esphome_config.esphome_venv_folder {
+        // If venv folder is specified, activate it before running esphome
+        let venv_activate = PathBuf::from(venv_folder).join("bin/activate");
+
+        if !venv_activate.exists() {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: format!(
+                        "Virtual environment activate script not found: {}",
+                        venv_activate.display()
+                    ),
+                }),
+            )
+                .into_response();
+        }
+
+        let command = format!(
+            "source {} && esphome compile {}",
+            venv_activate.display(),
+            main_filename
+        );
+
+        info!("Executing with venv: {}", command);
+
+        match Command::new("bash")
+            .arg("-c")
+            .arg(&command)
+            .current_dir(&project_path)
+            .output()
+            .await
+        {
+            Ok(output) => output,
+            Err(e) => {
+                error!("Failed to execute esphome command with venv: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(RebuildResponse {
+                        success: false,
+                        output: format!("Failed to execute esphome command with venv: {}", e),
+                        firmware_path: None,
+                    }),
+                )
+                    .into_response();
+            }
+        }
+    } else {
+        // No venv, run esphome directly
+        match Command::new("esphome")
+            .arg("compile")
+            .arg(main_filename)
+            .current_dir(&project_path)
+            .output()
+            .await
+        {
+            Ok(output) => output,
+            Err(e) => {
+                error!("Failed to execute esphome command: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(RebuildResponse {
+                        success: false,
+                        output: format!("Failed to execute esphome command: {}", e),
+                        firmware_path: None,
+                    }),
+                )
+                    .into_response();
+            }
+        }
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let combined_output = format!("{}\n{}", stdout, stderr);
+
+    if !output.status.success() {
+        return (
+            StatusCode::OK,
+            Json(RebuildResponse {
+                success: false,
+                output: combined_output,
+                firmware_path: None,
+            }),
+        )
+            .into_response();
+    }
+
+    // If successful, copy firmware to firmware folder
+    // The firmware is located at: .esphome/build/<esphome_name>/.pioenvs/<esphome_name>/firmware.bin
+    // where <esphome_name> is the value from the esphome.name field in the YAML
+
+    let source_firmware = project_path
+        .join(".esphome/build")
+        .join(&esphome_name)
+        .join(".pioenvs")
+        .join(&esphome_name)
+        .join("firmware.bin");
+
+    if !source_firmware.exists() {
+        return (
+            StatusCode::OK,
+            Json(RebuildResponse {
+                success: true,
+                output: format!("{}\n\nWARNING: Compilation succeeded but firmware binary not found at expected location: {}\nMake sure your ESPHome YAML has 'esphome.name' set to '{}'.", 
+                    combined_output, source_firmware.display(), esphome_name),
+                firmware_path: None,
+            }),
+        )
+            .into_response();
+    }
+
+    // Copy to firmware folder with proper naming: <device_id> - <version>.bin
+    // Use the version from YAML (the one that was just compiled)
+    let firmware_filename = if let Some(version) = yaml_version {
+        format!("{} - {}.bin", device_id, version)
+    } else {
+        format!("{} - unknown.bin", device_id)
+    };
+
+    let firmware_folder = PathBuf::from(&state.config.firmware.storage_path);
+    let destination = firmware_folder.join(&firmware_filename);
+
+    match tokio::fs::copy(&source_firmware, &destination).await {
+        Ok(_) => {
+            info!("Firmware copied to: {}", destination.display());
+            (
+                StatusCode::OK,
+                Json(RebuildResponse {
+                    success: true,
+                    output: format!(
+                        "{}\n\nSUCCESS: Firmware built and copied to: {}",
+                        combined_output,
+                        destination.display()
+                    ),
+                    firmware_path: Some(destination.display().to_string()),
+                }),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            error!("Failed to copy firmware: {}", e);
+            (
+                StatusCode::OK,
+                Json(RebuildResponse {
+                    success: true,
+                    output: format!(
+                        "{}\n\nWARNING: Compilation succeeded but failed to copy firmware: {}",
+                        combined_output, e
+                    ),
+                    firmware_path: None,
+                }),
+            )
+                .into_response()
+        }
+    }
+}
+
 /// Get configuration with sensitive data masked (requires authentication)
 async fn config_handler(State(state): State<AppState>, session: Session) -> Response {
     if !is_authenticated(&session).await {
@@ -325,18 +1076,17 @@ async fn config_handler(State(state): State<AppState>, session: Session) -> Resp
             name: config.service.name.clone(),
             log_level: config.service.log_level.clone(),
             log_file_path: config.service.log_file_path.clone(),
-        },
-        firmware: MaskedFirmwareConfig {
-            storage_path: config.firmware.storage_path.clone(),
-            max_concurrent_updates: config.firmware.max_concurrent_updates,
-            update_timeout: config.firmware.update_timeout,
-            check_interval: config.firmware.check_interval,
+            max_concurrent_updates: config.service.max_concurrent_updates,
+            check_interval: config.service.check_interval,
             ota_password: config
-                .firmware
+                .service
                 .ota_password
                 .as_ref()
                 .map(|_| mask_string("password")),
-            default_ota_port: config.firmware.default_ota_port,
+            default_ota_port: config.service.default_ota_port,
+        },
+        firmware: MaskedFirmwareConfig {
+            storage_path: config.firmware.storage_path.clone(),
             erase_firmware_after_upload: config.firmware.erase_firmware_after_upload,
         },
         pushover: config.pushover.as_ref().map(|p| MaskedPushoverConfig {
@@ -357,6 +1107,15 @@ async fn config_handler(State(state): State<AppState>, session: Session) -> Resp
                 manufacturer: ha.manufacturer.clone(),
                 model: ha.model.clone(),
                 update_interval: ha.update_interval,
+            }),
+        esphome_projects: config
+            .esphome_projects
+            .as_ref()
+            .map(|ep| EsphomeProjectsConfigView {
+                enable: ep.enable,
+                projects_folder: ep.projects_folder.clone(),
+                default_main_filename: ep.default_main_filename.clone(),
+                esphome_venv_folder: ep.esphome_venv_folder.clone(),
             }),
         web: MaskedWebConfig {
             port: config.web.port,
@@ -611,14 +1370,12 @@ fn parse_config_value(key: &str, value: &str) -> Result<serde_yml::Value, String
             .map(|v| serde_yml::Value::Number(serde_yml::Number::from(v)))
             .map_err(|_| format!("Invalid integer value for {}", key)),
         // Time duration fields (stored as u64)
-        "keep_alive"
-        | "check_interval"
-        | "update_timeout"
-        | "refresh_period"
-        | "edit_session_timeout" => cleaned_value
-            .parse::<u64>()
-            .map(|v| serde_yml::Value::Number(serde_yml::Number::from(v)))
-            .map_err(|_| format!("Invalid duration value for {}", key)),
+        "keep_alive" | "check_interval" | "refresh_period" | "edit_session_timeout" => {
+            cleaned_value
+                .parse::<u64>()
+                .map(|v| serde_yml::Value::Number(serde_yml::Number::from(v)))
+                .map_err(|_| format!("Invalid duration value for {}", key))
+        }
         // Boolean fields
         "erase_firmware_after_upload" | "enabled" => match cleaned_value.to_lowercase().as_str() {
             "true" | "yes" | "1" => Ok(serde_yml::Value::Bool(true)),

@@ -80,8 +80,8 @@ View and edit service configuration with:
 **Configuration Sections:**
 - **MQTT** - Broker connection settings (host, port, client_id, username, password, keep_alive, registration_topic)
 - **Database** - SQLite database configuration (path, pool_size)
-- **Service** - Logging and service settings (name, log_level, log_file_path)
-- **Firmware** - Update behavior and storage (storage_path, max_concurrent_updates, check_interval, update_timeout, ota_password, default_ota_port, erase_firmware_after_upload)
+- **Service** - Logging and OTA service settings (name, log_level, log_file_path, max_concurrent_updates, check_interval, ota_password, default_ota_port)
+- **Firmware** - Firmware binary storage location (storage_path, erase_firmware_after_upload)
 - **Pushover** - Notification settings if configured (enabled, api_token, user_key, device, priority)
 - **Web** - Web interface configuration (port, username, password, refresh_period, edit_session_timeout)
 

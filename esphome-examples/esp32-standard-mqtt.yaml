@@ -1,10 +1,10 @@
 # ESPHome Configuration Example - Standard Device (No Deep Sleep)
 # This example shows all required components to work with the OTA service
+# through MQTT.
 # Device will remain online continuously and respond immediately to OTA requests
 
 substitutions:
   device_name: esp32-outdoor-sensor
-  device_id: esp32-outdoor-sensor
   friendly_name: "Outdoor Sensor"
   firmware_version: "1.0.0"  # Update this when deploying new firmware
 
@@ -15,7 +15,7 @@ substitutions:
 
   # MQTT related substitutions
   mqtt_port: "1883"  # 8883 for TLS
-  topic_prefix: "devices/${device_id}"
+  devices_prefix: "devices/"
 
   # IMPORTANT:
   # If the device uses a static IP, set it here.
@@ -31,8 +31,8 @@ esphome:
   on_boot:
     priority: -100  # Run after WiFi and MQTT are connected
     then:
-      - delay: 1s  # Wait for MQTT connection to stabilize
-      - script.execute: register_device
+      - delay: 500s  # Wait for MQTT connection to stabilize
+      - script.execute: register_device_to_ota_service
 
 esp32:
   board: esp32dev
@@ -41,6 +41,7 @@ esp32:
 
 # WiFi configuration
 wifi:
+  id: wifi_component
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
@@ -58,20 +59,6 @@ wifi:
     ssid: "${device_name} Fallback"
     password: !secret ap_password
 
-# Text sensor for IP address.
-text_sensor:
-  - platform: wifi_info
-    ip_address:
-      id: device_ip
-  - platform: wifi_info
-    mac_address:
-      id: wifi_mac_address
-
-sensor:
-  - platform: wifi_signal
-    id: wifi_rssi
-    update_interval: 60s
-
 # Enable logging (reduce level to save power)
 logger:
   level: INFO
@@ -85,49 +72,47 @@ ota:
 
 # MQTT configuration - REQUIRED for OTA service integration
 mqtt:
+  id: mqtt_client
   broker: !secret mqtt_broker_address
   port: ${mqtt_port}
   username: !secret mqtt_username
   password: !secret mqtt_password
-  client_id: ${device_id}
   
   keepalive: 60s
   
-  # Subscribe to OTA mode topic
-  on_message:
-    - topic: ${topic_prefix}/ota-mode
-      payload: 'NEW-FIRMWARE-VERSION'
-      then:
-        - logger.log: "Received a NEW-FIRMWARE-VERSION OTA mode message"
-        - logger.log: "Preparing for OTA update"
-        - mqtt.publish:
-            topic: ${topic_prefix}/ota-ready
-            payload: "OTA-READY"
-            retain: false
-            qos: 1
-
-        # Optional: Turn off sensors or close connections if needed
-        # The device will receive firmware upload shortly
+  on_connect:
+    then:
+      - delay: 500ms
+      - script.execute: check_for_ota # <-- Check for OTA updates upon MQTT connection
 
 script:
-  - id: register_device
+  - id: register_device_to_ota_service
     then:
       - wait_until:
           mqtt.connected:
       - delay: 500ms
-      - mqtt.publish_json: 
-          topic: "${ota_service_name}/register"
-          payload: |-
-            root["device_id"] = "${device_id}"; 
-            root["ip_address"] = id(device_ip).state.c_str();
-            root["mac_address"] = id(wifi_mac_address).state.c_str();
+      - lambda: |-
+          std::string device_id = esphome::App.get_name();
+          id(mqtt_client).publish_json("${ota_service_name}/register", [=](JsonObject root) {
+            root["device_id"] = device_id.c_str(); 
+            root["ip_address"] = id(wifi_component).get_use_address();
+            root["mac_address"] = get_mac_address_pretty();
             root["firmware_version"] = "${firmware_version}";
-            root["ota_readiness_topic"] = "${topic_prefix}/ota-ready";
-            root["ota_mode_topic"] = "${topic_prefix}/ota-mode";
-            root["uses_deep_sleep"] = false;
-            root["rssi"] = id(wifi_rssi).state;
-          retain: false # Important: do *NOT* retain registration messages
-          qos: 1
-      - delay: 1s
-      - logger.log: "Device registered with OTA service"
+            root["ota_readiness_topic"] = "${devices_prefix}" + device_id + "/ota-ready";
+            root["ota_mode_topic"] = "${devices_prefix}" + device_id + "/ota-mode";
+            root["uses_deep_sleep"] = true;
+            root["rssi"] = id(wifi_component).wifi_rssi();
+          }, false, 1);
 
+  - id: check_for_ota
+    then:
+      - lambda: |-
+          std::string device_id = esphome::App.get_name();
+          id(mqtt_client).subscribe("${devices_prefix}" + device_id + "/ota-mode",  
+            [=](const std::string &topic, const std::string &payload) {
+              if (payload == "NEW-FIRMWARE-VERSION") {
+                id(deep_sleep_control).prevent_deep_sleep();
+                id(ota_update) = true;
+                id(mqtt_client).publish("${devices_prefix}" + device_id + "/ota-ready", "OTA-READY", 9, 2, false);
+              }
+            },1);

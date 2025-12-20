@@ -527,13 +527,12 @@ service:
   name: "ota-service"
   log_level: "info"
   log_file_path: "/var/log/ota-service/ota-service.log"
+  max_concurrent_updates: 10
+  check_interval: 300  # Check every 5 minutes
+  default_ota_port: 3232  # Default OTA port (devices can override)
 
 firmware:
   storage_path: "/var/lib/ota-service/firmware"
-  max_concurrent_updates: 10
-  update_timeout: 3600
-  check_interval: 300  # Check every 5 minutes
-  default_ota_port: 3232  # Default OTA port (devices can override)
   erase_firmware_after_upload: false  # Delete firmware file after successful upload
 ```
 

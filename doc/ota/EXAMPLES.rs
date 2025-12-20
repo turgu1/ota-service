@@ -36,13 +36,13 @@ mod mock {
 
     pub struct ServiceConfig {
         pub firmware_dir: String,
+        pub ota_password: String,
+        pub default_ota_port: u16,
+        pub check_interval: u64,
     }
 
     pub struct FirmwareConfig {
         pub firmware_dir: String,
-        pub ota_password: String,
-        pub default_ota_port: u16,
-        pub check_interval: u64,
         pub erase_firmware_after_upload: bool,
     }
 
@@ -213,12 +213,11 @@ async fn example_1_basic_service_setup() -> Result<(), String> {
         },
         service: ServiceConfig {
             firmware_dir: "/var/lib/ota-service/firmware".to_string(),
-        },
-        firmware: FirmwareConfig {
-            firmware_dir: "/var/lib/ota-service/firmware".to_string(),
             ota_password: "secure123".to_string(),
             default_ota_port: 3232,
-            check_interval: 300, // 5 minutes
+            check_interval: 300, // 5 minutes        },
+        firmware: FirmwareConfig {
+            firmware_dir: "/var/lib/ota-service/firmware".to_string(),
             erase_firmware_after_upload: false,
         },
         pushover: None,

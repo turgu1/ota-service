@@ -60,6 +60,8 @@ pub struct Device {
     pub fail_count: i32,
     pub update_count: i32,
     pub rssi: i32,
+    pub project_folder: Option<String>,
+    pub main_filename: Option<String>,
 }
 
 /// Upload history record from the database
@@ -118,7 +120,9 @@ impl Database {
                 state TEXT NOT NULL DEFAULT 'idle',
                 fail_count INTEGER NOT NULL DEFAULT 0,
                 update_count INTEGER NOT NULL DEFAULT 0,
-                rssi INTEGER NOT NULL DEFAULT 0
+                rssi INTEGER NOT NULL DEFAULT 0,
+                project_folder TEXT,
+                main_filename TEXT
             )
         ";
 
@@ -141,7 +145,69 @@ impl Database {
             .execute(upload_history_query)
             .map_err(|e| format!("Failed to create upload_history table: {}", e))?;
 
+        // Run migrations for existing databases
+        self.run_migrations()?;
+
         debug!("Database schema initialized");
+        Ok(())
+    }
+
+    /// Run database migrations to update existing schemas
+    fn run_migrations(&self) -> Result<(), String> {
+        debug!("Running database migrations");
+
+        // Check if project_folder column exists, if not add it
+        let check_column = "SELECT COUNT(*) as count FROM pragma_table_info('devices') WHERE name='project_folder'";
+
+        let mut statement = self
+            .connection
+            .prepare(check_column)
+            .map_err(|e| format!("Failed to check for project_folder column: {}", e))?;
+
+        statement
+            .next()
+            .map_err(|e| format!("Failed to execute column check: {}", e))?;
+
+        let count: i64 = statement
+            .read(0)
+            .map_err(|e| format!("Failed to read column count: {}", e))?;
+
+        if count == 0 {
+            info!("Adding project_folder column to devices table");
+            let add_column = "ALTER TABLE devices ADD COLUMN project_folder TEXT";
+            self.connection
+                .execute(add_column)
+                .map_err(|e| format!("Failed to add project_folder column: {}", e))?;
+            info!("project_folder column added successfully");
+        }
+
+        // Check if main_filename column exists, if not add it
+        let check_main_filename =
+            "SELECT COUNT(*) as count FROM pragma_table_info('devices') WHERE name='main_filename'";
+
+        let mut statement = self
+            .connection
+            .prepare(check_main_filename)
+            .map_err(|e| format!("Failed to check for main_filename column: {}", e))?;
+
+        statement
+            .next()
+            .map_err(|e| format!("Failed to execute column check: {}", e))?;
+
+        let count: i64 = statement
+            .read(0)
+            .map_err(|e| format!("Failed to read column count: {}", e))?;
+
+        if count == 0 {
+            info!("Adding main_filename column to devices table");
+            let add_column = "ALTER TABLE devices ADD COLUMN main_filename TEXT";
+            self.connection
+                .execute(add_column)
+                .map_err(|e| format!("Failed to add main_filename column: {}", e))?;
+            info!("main_filename column added successfully");
+        }
+
+        debug!("Database migrations completed");
         Ok(())
     }
 
@@ -153,21 +219,21 @@ impl Database {
             INSERT INTO devices (
                 device_id, ip_address, mac_address, firmware_version, last_updated,
                 ota_readiness_topic, ota_mode_topic, uses_deep_sleep, ota_port, state,
-                fail_count, update_count, rssi
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                fail_count, update_count, rssi, project_folder, main_filename
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(device_id) DO UPDATE SET
                 ip_address = excluded.ip_address,
                 mac_address = excluded.mac_address,
                 firmware_version = excluded.firmware_version,
-                last_updated = excluded.last_updated,
                 ota_readiness_topic = excluded.ota_readiness_topic,
                 ota_mode_topic = excluded.ota_mode_topic,
                 uses_deep_sleep = excluded.uses_deep_sleep,
                 ota_port = excluded.ota_port,
-                state = excluded.state,
-                rssi = excluded.rssi
-                -- Note: fail_count and update_count are intentionally NOT updated here
-                -- They are only modified by increment_fail_count() and increment_update_count()
+                rssi = excluded.rssi,
+                project_folder = excluded.project_folder,
+                main_filename = excluded.main_filename
+                -- Note: last_updated, state, fail_count, and update_count are preserved on conflict
+                -- last_updated is only modified on successful firmware upload via update_device_firmware_version()
         ";
 
         let mut statement = self
@@ -214,6 +280,12 @@ impl Database {
         statement
             .bind((13, device.rssi as i64))
             .map_err(|e| format!("Failed to bind rssi: {}", e))?;
+        statement
+            .bind((14, device.project_folder.as_ref().map(|s| s.as_str())))
+            .map_err(|e| format!("Failed to bind project_folder: {}", e))?;
+        statement
+            .bind((15, device.main_filename.as_ref().map(|s| s.as_str())))
+            .map_err(|e| format!("Failed to bind main_filename: {}", e))?;
 
         statement
             .next()
@@ -284,6 +356,8 @@ impl Database {
                 fail_count: statement.read::<i64, _>("fail_count").unwrap_or(0) as i32,
                 update_count: statement.read::<i64, _>("update_count").unwrap_or(0) as i32,
                 rssi: statement.read::<i64, _>("rssi").unwrap_or(0) as i32,
+                project_folder: statement.read::<String, _>("project_folder").ok(),
+                main_filename: statement.read::<String, _>("main_filename").ok(),
             };
 
             Ok(Some(device))
@@ -351,6 +425,8 @@ impl Database {
                 fail_count: statement.read::<i64, _>("fail_count").unwrap_or(0) as i32,
                 update_count: statement.read::<i64, _>("update_count").unwrap_or(0) as i32,
                 rssi: statement.read::<i64, _>("rssi").unwrap_or(0) as i32,
+                project_folder: statement.read::<String, _>("project_folder").ok(),
+                main_filename: statement.read::<String, _>("main_filename").ok(),
             };
 
             devices.push(device);
@@ -409,23 +485,18 @@ impl Database {
     ) -> Result<(), String> {
         debug!("Updating state for device {}: {}", device_id, new_state);
 
-        let query = "UPDATE devices SET state = ?, last_updated = ? WHERE device_id = ?";
+        let query = "UPDATE devices SET state = ? WHERE device_id = ?";
 
         let mut statement = self
             .connection
             .prepare(query)
             .map_err(|e| format!("Failed to prepare update statement: {}", e))?;
 
-        let now = chrono::Local::now().to_rfc3339();
-
         statement
             .bind((1, new_state.to_string()))
             .map_err(|e| format!("Failed to bind state: {}", e))?;
         statement
-            .bind((2, now.as_str()))
-            .map_err(|e| format!("Failed to bind last_updated: {}", e))?;
-        statement
-            .bind((3, device_id))
+            .bind((2, device_id))
             .map_err(|e| format!("Failed to bind device_id: {}", e))?;
 
         statement
@@ -439,21 +510,15 @@ impl Database {
     pub fn increment_fail_count(&mut self, device_id: &str) -> Result<(), String> {
         debug!("Incrementing fail count for device {}", device_id);
 
-        let query =
-            "UPDATE devices SET fail_count = fail_count + 1, last_updated = ? WHERE device_id = ?";
+        let query = "UPDATE devices SET fail_count = fail_count + 1 WHERE device_id = ?";
 
         let mut statement = self
             .connection
             .prepare(query)
             .map_err(|e| format!("Failed to prepare update statement: {}", e))?;
 
-        let now = chrono::Local::now().to_rfc3339();
-
         statement
-            .bind((1, now.as_str()))
-            .map_err(|e| format!("Failed to bind last_updated: {}", e))?;
-        statement
-            .bind((2, device_id))
+            .bind((1, device_id))
             .map_err(|e| format!("Failed to bind device_id: {}", e))?;
 
         statement

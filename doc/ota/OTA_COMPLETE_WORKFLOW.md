@@ -428,7 +428,7 @@ ERROR: OTA failed for device-001: MD5 validation failed
 ### Configuration Options
 
 ```yaml
-firmware:
+service:
   check_interval: 300  # Check for new firmware every 5 minutes
 ```
 
